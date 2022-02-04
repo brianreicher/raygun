@@ -298,7 +298,7 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
         
         if success:
             try: # final test: through discriminator
-                shape = (1,1) + (success,) * self.ndims
+                shape = (1,1) + (size - pad,) * self.ndims
                 temp = torch.rand(*shape)
                 _ = self.netD1(temp)
                 return size
@@ -320,22 +320,24 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
             for level in np.arange(self.gnet_depth - 1):
                 size -= np.sum(np.array(kernel_size_down[level]) - 1, axis=0)[0]
                 size /= down_fac
+                logger.debug(f'Going down level {level} and size {size}')
                 assert _check_size(size)
 
             #bottom level
             size -= np.sum(np.array(kernel_size_down[-1]) - 1, axis=0)[0]
+            logger.debug(f'At bottom with size {size}')
             assert _check_size(size)
 
             #coming up
             for level in np.arange(self.gnet_depth - 1)[::-1]:
                 size *= down_fac
                 size -= np.sum(np.array(kernel_size_up[level]) - 1, axis=0)[0]
+                logger.debug(f'Going up level {level} and size {size}')
                 assert _check_size(size)
             
             #final check
             shape = (1,1) + (in_size,) * self.ndims
-            out = self.netG1(torch.rand(*shape))
-            assert out.shape[-1] == size # internal control
+            _ = self.netG1(torch.rand(*shape))
             return size
         except:
             return False        
@@ -353,8 +355,10 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
         while not success:
             try:
                 out_size = side_length - pad
+                assert out_size > 0
                 print(f'Side length {side_length} successful on first pass, with result side length {out_size}.')
                 out_size = self.get_valid_crop_to(out_size)
+                assert out_size
                 print(f'Side length {side_length} successful on both passes, with final side length {out_size}.')
                 shape = (1,1) + (out_size,) * self.ndims                
                 final_size = Dnet(torch.rand(*shape)).shape
@@ -576,7 +580,8 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
 
         # self.pipe_A += gp.RandomLocation(min_masked=0.5, mask=self.mask_A) + self.resample + self.normalize_real_A        
         self.pipe_A += gp.RandomLocation()
-        self.pipe_A += self.reject_A
+        if self.reject_A:
+            self.pipe_A += self.reject_A
         self.pipe_A += self.resample_A
 
         self.pipe_A += gp.SimpleAugment(mirror_only=augment_axes, transpose_only=augment_axes)
@@ -603,7 +608,8 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
         
         # self.pipe_B += gp.RandomLocation(min_masked=0.5, mask=self.mask_B) + self.normalize_real_B
         self.pipe_B += gp.RandomLocation() 
-        self.pipe_B += self.reject_B
+        if self.reject_B:
+            self.pipe_B += self.reject_B
         self.pipe_B += self.resample_B
 
         self.pipe_B += gp.SimpleAugment(mirror_only=augment_axes, transpose_only=augment_axes)
