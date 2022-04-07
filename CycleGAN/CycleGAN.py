@@ -214,8 +214,12 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
             if self.batch_size == 1: # ensure batch dimension is present
                 ex_input = ex_input.unsqueeze(axis=0)
             ex_inputs[i] = ex_input
-        
-        self.trainer.summary_writer.add_graph(self.model, ex_inputs)                
+
+        try:
+            self.trainer.summary_writer.add_graph(self.model, ex_inputs)
+
+        except:
+            logger.warning("Failed to add model graph to tensorboard.")           
 
     def batch_tBoard_write(self, i=0):
         self.trainer.summary_writer.flush()
