@@ -1,4 +1,3 @@
-# !conda activate n2v
 import itertools
 from matplotlib import pyplot as plt
 import torch
@@ -9,9 +8,6 @@ import daisy
 import os
 
 import gunpowder as gp
-# import sys
-# sys.path.insert(0, '/n/groups/htem/users/jlr54/gunpowder/')
-# from gunpowder import gunpowder as gp
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -24,9 +20,8 @@ import numpy as np
 
 torch.backends.cudnn.benchmark = True
 
-# from funlib.learn.torch.models.unet import UNet, ConvPass
 from residual_unet import ResidualUNet
-from unet import UNet, ConvPass
+from unet import UNet
 from utils import *
 try:
     from .CycleGAN_Model import *
@@ -55,30 +50,32 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
             
             gnet_type='unet',
             gnet_kwargs = {},
-            g_init_learning_rate=1e-5,#0.0004#1e-6 # init_learn_rate = 0.0004
+            g_init_learning_rate=1e-5,
 
             dnet_depth=3, # number of layers in Discriminator networks
             d_downsample_factor=2,
             d_num_fmaps=16,
             d_kernel_size=3, 
-            d_init_learning_rate=1e-5,#0.0004#1e-6 # init_learn_rate = 0.0004
+            d_init_learning_rate=1e-5,
             
-            l1_lambda=10, # Default from CycleGAN paper
-            identity_lambda=0.5, # Default from CycleGAN paper
-            loss_style='cycle', # supports 'cycle' or 'split'
-            gan_mode='lsgan',
+            loss_style='cycle', # supports 'cycle' or 'split' or 'custom'
+            loss_kwargs={'gan_mode': 'lsgan', # or 'wgangp' for Wasserstein
+                        'l1_lambda': 10, # Default from CycleGAN paper
+                        'identity_lambda': 0.5 # Default from CycleGAN paper
+                    },
+
             sampling_bottleneck=False,
             adam_betas = [0.9, 0.999],
             
             min_coefvar=None,
             interp_order=None,
-            side_length=32,# in dataset A sized voxels at output layer - actual used ROI for network input will be bigger for valid padding
+            side_length=32, # in common sized voxels
             batch_size=1,
             num_workers=11,
             cache_size=50,
             spawn_subprocess=False,
-            num_epochs=10000,
-            log_every=100,
+            num_epochs=20000,
+            log_every=20,
             save_every=2000,
             tensorboard_path='./tensorboard/',
             verbose=True,
@@ -127,18 +124,16 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
             self.spawn_subprocess = spawn_subprocess            
             self.g_init_learning_rate = g_init_learning_rate
             self.d_init_learning_rate = d_init_learning_rate
-            self.l1_lambda = l1_lambda
-            self.identity_lambda = identity_lambda
+            self.loss_style = loss_style
+            self.loss_kwargs = loss_kwargs
             self.log_every = log_every
             self.save_every = save_every
             self.tensorboard_path = tensorboard_path
             self.verbose = verbose
             self.interp_order = interp_order
-            self.loss_style = loss_style
             self.sampling_bottleneck = sampling_bottleneck
             self.adam_betas = adam_betas
             self.min_coefvar = min_coefvar
-            self.gan_mode = gan_mode
             self._set_verbose()
             if checkpoint is None:
                 try:
@@ -214,12 +209,11 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
             if self.batch_size == 1: # ensure batch dimension is present
                 ex_input = ex_input.unsqueeze(axis=0)
             ex_inputs[i] = ex_input
-
+        
         try:
-            self.trainer.summary_writer.add_graph(self.model, ex_inputs)
-
+            self.trainer.summary_writer.add_graph(self.model, ex_inputs)                
         except:
-            logger.warning("Failed to add model graph to tensorboard.")           
+            logger.warning('Failed to add model graph to tensorboard.')
 
     def batch_tBoard_write(self, i=0):
         self.trainer.summary_writer.flush()
@@ -275,7 +269,7 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
         shape = (1,1) + (side_length,) * self.ndims
         pars = [par for par in gnet.parameters()]
         result = gnet(torch.zeros(*shape, device=pars[0].device))
-        pad = np.ceil((gp.Coordinate(shape) - gp.Coordinate(result.shape)) / 2)
+        pad = np.floor((gp.Coordinate(shape) - gp.Coordinate(result.shape)) / 2)
 
         return gp.Coordinate(pad[-self.ndims:])
 
@@ -381,9 +375,6 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
         else:
             scale_factor_A, scale_factor_B = None, None
         
-        self.l1_loss = torch.nn.SmoothL1Loss() 
-        # self.l1_loss = torch.nn.L1Loss() 
-        self.gan_loss = GANLoss(gan_mode=self.gan_mode)
         if self.loss_style.lower()=='cycle':
             
             self.model = CycleGAN_Model(self.netG1, self.netD1, self.netG2, self.netD2, scale_factor_A, scale_factor_B)
@@ -391,7 +382,7 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD1.parameters(), self.netD2.parameters()), lr=self.d_init_learning_rate, betas=self.adam_betas)
             self.optimizer = CycleGAN_Optimizer(self.optimizer_G, self.optimizer_D)
             
-            self.loss = CycleGAN_Loss(self.l1_loss, self.gan_loss, self.netD1, self.netG1, self.netD2, self.netG2, self.optimizer_D, self.optimizer_G, self.ndims, self.l1_lambda, self.identity_lambda, self.gan_mode)
+            self.loss = CycleGAN_Loss(self.netD1, self.netG1, self.netD2, self.netG2, self.optimizer_D, self.optimizer_G, self.ndims, **self.loss_kwargs)
         
         elif self.loss_style.lower()=='split':
         
@@ -401,7 +392,17 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
             self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD1.parameters(), self.netD2.parameters()), lr=self.d_init_learning_rate, betas=self.adam_betas)
             self.optimizer = Split_CycleGAN_Optimizer(self.optimizer_G1, self.optimizer_G2, self.optimizer_D)
 
-            self.loss = SplitGAN_Loss(self.l1_loss, self.gan_loss, self.netD1, self.netG1, self.netD2, self.netG2, self.optimizer_G1, self.optimizer_G2, self.optimizer_D, self.ndims, self.l1_lambda, self.identity_lambda, self.gan_mode)
+            self.loss = SplitGAN_Loss(self.netD1, self.netG1, self.netD2, self.netG2, self.optimizer_G1, self.optimizer_G2, self.optimizer_D, self.ndims, **self.loss_kwargs)
+        
+        elif self.loss_style.lower()=='custom':
+        
+            self.model = CycleGAN_Split_Model(self.netG1, self.netD1, self.netG2, self.netD2, scale_factor_A, scale_factor_B)
+            self.optimizer_G1 = torch.optim.Adam(self.netG1.parameters(), lr=self.g_init_learning_rate, betas=self.adam_betas)
+            self.optimizer_G2 = torch.optim.Adam(self.netG2.parameters(), lr=self.g_init_learning_rate, betas=self.adam_betas)
+            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD1.parameters(), self.netD2.parameters()), lr=self.d_init_learning_rate, betas=self.adam_betas)
+            self.optimizer = Split_CycleGAN_Optimizer(self.optimizer_G1, self.optimizer_G2, self.optimizer_D)
+
+            self.loss = Custom_Loss(self.netD1, self.netG1, self.netD2, self.netG2, self.optimizer_G1, self.optimizer_G2, self.optimizer_D, self.ndims, **self.loss_kwargs)
 
         else:
 
@@ -694,7 +695,7 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
         self.batch_show()
         return self.batch
 
-    def render_full(self, side='A', side_length=None, cycle=False, crop_to_valid=False):
+    def render_full(self, side='A', side_length=None, cycle=False, crop_to_valid=False, test=False):
         #CYCLED CURRENTLY SAVED IN UPSAMPLED FORM (i.e. not original voxel size)
         #set model into evaluation mode
         self.model.eval()
@@ -734,15 +735,67 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
         # pred_spec.dtype = datapipe.normalize_fake.dtype
 
         dataset_names = {datapipe.fake: 'volumes/'+self.model_name+'_enFAKE'}
-        array_specs = {datapipe.fake: pred_spec.copy()}
+        # array_specs = {datapipe.fake: pred_spec.copy()}
         if cycle:
             dataset_names[datapipe.cycled] = 'volumes/'+self.model_name+'_enCYCLED'
-            array_specs[datapipe.cycled] = pred_spec.copy()
+            # array_specs[datapipe.cycled] = pred_spec.copy()
+
+        # Calculate padding if necessary:
+        if crop_to_valid:
+            if crop_to_valid is True:
+                px_pad = self.get_valid_crop(side_length=side_length)
+            else:
+                px_pad = crop_to_valid
+            self.model.crop_pad = px_pad
+            px_pad = gp.Coordinate((0,)*(len(self.common_voxel_size) - len(px_pad)) + px_pad)
 
         scan_request = gp.BatchRequest()
         for array in arrays:            
             extents = self.get_extents(side_length, array_name=array.identifier)
+            if crop_to_valid and array is not datapipe.real:
+                extents -= px_pad * 2
+                if array is datapipe.cycled:
+                    extents -= px_pad * 2                    
             scan_request.add(array, self.common_voxel_size * extents, self.common_voxel_size)
+
+        render_pipe = datapipe.source 
+        if datapipe.resample: render_pipe += datapipe.resample
+        
+        render_pipe += datapipe.normalize_real
+        render_pipe += datapipe.scaleimg2tanh_real
+
+        if datapipe.unsqueeze: # add "channel" dimensions if neccessary, else use z dimension as channel
+            render_pipe += datapipe.unsqueeze
+        render_pipe += gp.Unsqueeze([datapipe.real]) # add batch dimension
+
+        render_pipe += gp.torch.Predict(self.model,
+                                inputs = input_dict,
+                                outputs = output_dict,
+                                checkpoint = self.checkpoint,
+                                # array_specs = array_specs, 
+                                spawn_subprocess=self.spawn_subprocess
+                                )                
+        
+        if cycle:
+            render_pipe += datapipe.postnet_pipe.cycle
+        else:
+            render_pipe += datapipe.postnet_pipe.nocycle
+        render_pipe += gp.Squeeze(arrays[1:], axis=0) # remove batch dimension
+        
+        # # Add cropping if necessary
+        # if crop_to_valid:
+        #     for key in dataset_names.keys():
+        #         render_pipe += gp.Crop(key, roi=scan_request[key].roi.grow(-pad, -pad))#abs_positive=pad, abs_negative=pad)
+
+        # Convert float32 on [0,1] to uint8 on [0,255]
+        render_pipe += gp.IntensityScaleShift(datapipe.fake, 255, 0)        
+        render_pipe += gp.AsType(datapipe.fake, np.uint8)        
+        if cycle:
+            render_pipe += gp.IntensityScaleShift(datapipe.cycled, 255, 0)        
+            render_pipe += gp.AsType(datapipe.cycled, np.uint8)      
+
+        if test:
+            return scan_request, render_pipe
 
         # Declare new array to write to
         if not hasattr(self, 'compressor'):
@@ -750,8 +803,7 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
                 'clevel': 3,
                 'cname': 'blosclz',
                 'blocksize': 64
-                }
-        
+                }        
         source_ds = daisy.open_ds(datapipe.src_path, datapipe.real_name)
         datapipe.total_roi = source_ds.data_roi
         for key, name in dataset_names.items():
@@ -765,45 +817,7 @@ class CycleGAN(): #TODO: Just pass config file or dictionary
                 write_size=write_size,
                 num_channels=1,
                 compressor=self.compressor)
-
-        render_pipe = datapipe.source 
-        if datapipe.resample: render_pipe += datapipe.resample
-        render_pipe += datapipe.normalize_real
-        render_pipe += datapipe.scaleimg2tanh_real
-
-        if datapipe.unsqueeze: # add "channel" dimensions if neccessary, else use z dimension as channel
-            render_pipe += datapipe.unsqueeze
-        render_pipe += gp.Unsqueeze([datapipe.real]) # add batch dimension
-
-        render_pipe += gp.torch.Predict(self.model,
-                                inputs = input_dict,
-                                outputs = output_dict,
-                                checkpoint = self.checkpoint,
-                                array_specs = array_specs, 
-                                spawn_subprocess=self.spawn_subprocess
-                                )                
-        
-        if cycle:
-            render_pipe += datapipe.postnet_pipe.cycle
-        else:
-            render_pipe += datapipe.postnet_pipe.nocycle
-        render_pipe += gp.Squeeze(arrays[1:], axis=0) # remove batch dimension
-        
-        render_pipe += gp.AsType(datapipe.fake, np.uint8)        
-        if cycle:
-            render_pipe += gp.AsType(datapipe.cycled, np.uint8)        
-
-        # Add cropping if necessary
-        if crop_to_valid:
-            pad = self.get_valid_crop(side_length=side_length)
-            for key in dataset_names.keys():
-                req_shape = np.array(scan_request[key].roi.get_shape())
-                crop = np.array((0,)*(len(req_shape) - len(pad)) + pad)
-                # crop_frac = gp.Coordinate(crop / req_shape)
-                # render_pipe += gp.Crop(key, fraction_negative=crop_frac, fraction_positive=crop_frac)
-                render_pipe += gp.Crop(key, abs_negative=crop, abs_positive=crop)
-
-
+                
         render_pipe += gp.ZarrWrite(
                         dataset_names = dataset_names,
                         output_filename = datapipe.out_path,
