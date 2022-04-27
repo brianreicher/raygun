@@ -16,6 +16,9 @@ from raygun.CycleGAN.CycleGAN_Model import *
 from raygun.CycleGAN.CycleGAN_LossFunctions import *
 from raygun.CycleGAN.CycleGAN_Optimizers import *
 
+
+# TODO: add normalization layer helper func
+
 class SplitCycleGAN():
 
     def __init___(self, gnet_type, gnet_kwargs, g_init_learning_rate, dnet_type, dnet_kwargs, 
@@ -48,15 +51,24 @@ class SplitCycleGAN():
         if gnet_kwargs is None:
             gnet_kwargs = self.gnet_kwargs
 
+        #  Initiate norm_layer from norm_instance
+        if self.ndims == 3: # 3D case
+            norm_instance = torch.nn.InstanceNorm3d
+        elif self.ndims == 2: # 2D case
+            norm_instance = torch.nn.InstanceNorm2d
+
+        # Initiate norm_layer  based on norm_instance
+        norm_layer = functools.partial(norm_instance, affine=False, track_running_stats=False)
+
         if self.gnet_type == 'unet':
             generator = torch.nn.Sequential(UNet(**gnet_kwargs), torch.nn.Tanh())
                                             
         elif self.gnet_type == 'resnet':
             if self.ndims == 2:
-                generator = ResnetGenerator(**gnet_kwargs)
+                generator = ResnetGenerator(**gnet_kwargs, norm_layer = norm_layer)
             
             elif self.ndims == 3:
-                generator = ResnetGenerator3D(**gnet_kwargs)
+                generator = ResnetGenerator3D(**gnet_kwargs, norm_layer = norm_layer)
 
             else:
                 raise f'Resnet generators only specified for 2D or 3D, not {self.ndims}D'
@@ -88,9 +100,9 @@ class SplitCycleGAN():
         if self.dnet_type == 'unet': 
             # TODO
             # discriminator = torch.nn.Sequential(UNet(**dnet_kwargs), torch.nn.Tanh())
-            raise f'Unknown generator type requested: unet'
+            raise f'Incomplete generator type requested: unet'
                                         
-        elif self.dnet_type == 'patch_gan':
+        elif self.dnet_type == 'patchgan':
             if self.ndims == 2:
                 discriminator = NLayerDiscriminator(**dnet_kwargs, norm_layer=norm_layer)
             
@@ -99,7 +111,7 @@ class SplitCycleGAN():
         
         elif self.dnet_type = 'resnet': # TODO
             # TODO
-            raise f'Unknown generator type requested: resnet'
+            raise f'Incomplete generator type requested: resnet'
 
         else:
             raise f'Unknown generator type requested: {self.gnet_type}'
@@ -174,7 +186,6 @@ if __name__ == '__main__':
                           gnet_kwargs={
                                        'input_nc': 1,
                                        'output_nc': 1,
-                                       'norm_layer': functools.partial(torch.nn.InstanceNorm3d, affine=True),
                                        'activation': torch.nn.SELU,
                                        'ngf': 64,
                                        'n_blocks': 9, 
