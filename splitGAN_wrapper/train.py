@@ -19,7 +19,7 @@ from raygun.CycleGAN.CycleGAN_Optimizers import *
 class SplitCycleGAN():
 
     def __init___(self, gnet_type, gnet_kwargs, g_init_learning_rate, dnet_type, dnet_kwargs, 
-                    d_init_learning_rate, loss_style, loss_kwargs, adam_betas, ndims):
+                    d_init_learning_rate, loss_kwargs, adam_betas, ndims):
         # Initate generator
         self.gnet_type = gnet_type
         self.gnet_kwargs = gnet_kwargs
@@ -29,7 +29,7 @@ class SplitCycleGAN():
         self.dnet_kwargs = dnet_kwargs
         self.d_init_learning_rate = d_init_learning_rate
         # Initiate loss and optmizer
-        self.loss_style = loss_style
+        # self.loss_style = loss_style
         self.loss_kwargs = loss_kwargs
         self.adam_betas = adam_betas
         self.ndims = ndims
@@ -50,9 +50,6 @@ class SplitCycleGAN():
 
         if self.gnet_type == 'unet':
             generator = torch.nn.Sequential(UNet(**gnet_kwargs), torch.nn.Tanh())
-                                            
-        # elif self.gnet_type == 'residualunet':                
-        #     generator = torch.nn.Sequential(ResidualUNet(**gnet_kwargs), torch.nn.Tanh())
                                             
         elif self.gnet_type == 'resnet':
             if self.ndims == 2:
@@ -76,25 +73,38 @@ class SplitCycleGAN():
         return generator
 
     # TODO: Add options for resnet, unet --> pass kwargs, throw out type (temporary)
-    def get_discriminator(self, conf=None):
-        # if conf is None:
-        #     conf = self
-        if conf.ndims == 3: #3D case
+    def get_discriminator(self, dnet_kwargs=None):
+        if self.ndims == 3: # 3D case
             norm_instance = torch.nn.InstanceNorm3d
-            discriminator_maker = NLayerDiscriminator3D
-        elif conf.ndims == 2:
+        elif self.ndims == 2: # 2D case
             norm_instance = torch.nn.InstanceNorm2d
-            discriminator_maker = NLayerDiscriminator
-    # Kwargs dict needs to match (conf.* --> kwargs)
+
+        # Initiate norm_layer  based on norm_instance
         norm_layer = functools.partial(norm_instance, affine=False, track_running_stats=False)
-        discriminator = discriminator_maker(input_nc=1, 
-                                        ndf=conf.d_num_fmaps, 
-                                        n_layers=conf.dnet_depth, 
-                                        norm_layer=norm_layer,
-                                        downsampling_kw=conf.d_downsample_factor, 
-                                        kw=conf.d_kernel_size)
-                                
-        init_weights(discriminator, init_type='kaiming')
+
+        if dnet_kwargs is None:
+            dnet_kwargs = self.dnet_kwargs
+
+        if self.dnet_type == 'unet': 
+            # TODO
+            # discriminator = torch.nn.Sequential(UNet(**dnet_kwargs), torch.nn.Tanh())
+            raise f'Unknown generator type requested: unet'
+                                        
+        elif self.dnet_type == 'patch_gan':
+            if self.ndims == 2:
+                discriminator = NLayerDiscriminator(**dnet_kwargs, norm_layer=norm_layer)
+            
+            elif self.ndims == 3:
+                discriminator = NLayerDiscriminator3D(**dnet_kwargs, norm_layer=norm_layer)
+        
+        elif self.dnet_type = 'resnet': # TODO
+            # TODO
+            raise f'Unknown generator type requested: resnet'
+
+        else:
+            raise f'Unknown generator type requested: {self.gnet_type}'
+
+        init_weights(discriminator, init_type='kaiming') # Initialize weights and set func
         return discriminator
 
     def setup_networks(self):
@@ -160,7 +170,38 @@ if __name__ == '__main__':
     print('The number of training images = %d' % dataset_size)
     
     # TODO: initialize model
-    model = SplitCycleGAN(...)
+    model = SplitCycleGAN(gnet_type = 'resnet', 
+                          gnet_kwargs={
+                                       'input_nc': 1,
+                                       'output_nc': 1,
+                                       'norm_layer': functools.partial(torch.nn.InstanceNorm3d, affine=True),
+                                       'activation': torch.nn.SELU,
+                                       'ngf': 64,
+                                       'n_blocks': 9, 
+                                       },
+                          g_init_learning_rate = 0.00004, 
+                          dnet_type = 'patch_gan', 
+                          # TODO: update for further discriminator styles
+                          dnet_kwargs = {
+                                         'input_nc': 1
+                                        }
+                          d_init_learning_rate = 0.00007, 
+                          loss_kwargs = {
+                                         l1_loss = torch.nn.SmoothL1Loss(), 
+                                         g_lambda_dict= {'A': {'l1_loss': {'cycled': 10, 'identity': 0},
+                                                            'gan_loss': {'fake': 1, 'cycled': 0},
+                                                            },
+                                                        'B': {'l1_loss': {'cycled': 10, 'identity': 0},
+                                                            'gan_loss': {'fake': 1, 'cycled': 0},
+                                                            },
+                                                    },
+                                         d_lambda_dict= {'A': {'real': 1, 'fake': 1, 'cycled': 0},
+                                                        'B': {'real': 1, 'fake': 1, 'cycled': 0},
+                                                    },
+                                         gan_mode='lsgan'
+                                         }, 
+                          adam_betas = [0.5, 0.999], 
+                          ndims = 3)
 
     visualizer = Visualizer(opt)   # create a visualizer that display/save images and plots
     total_iters = 0                # the total number of training iterations
