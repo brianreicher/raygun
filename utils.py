@@ -8,6 +8,7 @@ import torch.functional as F
 from torch import Tensor
 from torch.nn import init
 
+
 class NLayerDiscriminator(nn.Module):
     """Defines a PatchGAN discriminator"""
 

@@ -1,6 +1,7 @@
 # General-purpose training script for SplitGAN image-to-image translation
+import os
 raygun = '/n/groups/htem/users/br128/raygun' # Import path for network architectures
-
+raygun = os.path.dirname()
 import time
 import torch
 import functools
@@ -112,7 +113,7 @@ class SplitCycleGAN():
             elif self.ndims == 3:
                 discriminator = NLayerDiscriminator3D(**dnet_kwargs, norm_layer=norm_layer)
         
-        elif self.dnet_type = 'resnet': # TODO
+        elif self.dnet_type == 'resnet': # TODO
             # TODO
             raise f'Incomplete generator type requested: resnet'
 

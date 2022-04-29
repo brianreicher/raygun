@@ -1,4 +1,4 @@
-exihttps://github.com/funkelab/daisy/archive/0.3-dev.zip
+https://github.com/funkelab/daisy/archive/0.3-dev.zip
 https://github.com/funkelab/funlib.learn.torch/archive/master.zip
 https://github.com/funkelab/funlib.math/archive/master.zip
 https://github.com/rhoadesScholar/gunpowder/archive/raygun-dev2.zip
