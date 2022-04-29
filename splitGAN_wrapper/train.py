@@ -18,6 +18,9 @@ from raygun.CycleGAN.CycleGAN_Optimizers import *
 
 
 # TODO: add normalization layer helper func
+def get_normlayer(ndims: int):
+    pass
+
 
 class SplitCycleGAN():
 
