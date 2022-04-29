@@ -18,9 +18,16 @@ from raygun.CycleGAN.CycleGAN_LossFunctions import *
 from raygun.CycleGAN.CycleGAN_Optimizers import *
 
 
-# TODO: add normalization layer helper func
-def get_normlayer(ndims: int):
-    pass
+
+# Normalization layer helper func
+def get_normalization(ndims: int):
+    if ndims == 3:  # 3D case
+        norm_instance = torch.nn.InstanceNorm3d
+    elif ndims == 2:  # 2D case
+        norm_instance = torch.nn.InstanceNorm2d
+    # Initiate norm_layer  based on norm_instance
+    norm_layer = functools.partial(norm_instance, affine=False, track_running_stats=False)
+    return norm_layer
 
 
 class SplitCycleGAN():
@@ -55,24 +62,19 @@ class SplitCycleGAN():
         if gnet_kwargs is None:
             gnet_kwargs = self.gnet_kwargs
 
-        #  Initiate norm_layer from norm_instance
-        if self.ndims == 3: # 3D case
-            norm_instance = torch.nn.InstanceNorm3d
-        elif self.ndims == 2: # 2D case
-            norm_instance = torch.nn.InstanceNorm2d
-
         # Initiate norm_layer  based on norm_instance
-        norm_layer = functools.partial(norm_instance, affine=False, track_running_stats=False)
+        norm_layer = get_normalization(self.ndims)
+        self.gnet_kwargs.update({'norm_layer': norm_layer})
 
         if self.gnet_type == 'unet':
             generator = torch.nn.Sequential(UNet(**gnet_kwargs), torch.nn.Tanh())
                                             
         elif self.gnet_type == 'resnet':
             if self.ndims == 2:
-                generator = ResnetGenerator(**gnet_kwargs, norm_layer = norm_layer)
+                generator = ResnetGenerator(**gnet_kwargs)
             
             elif self.ndims == 3:
-                generator = ResnetGenerator3D(**gnet_kwargs, norm_layer = norm_layer)
+                generator = ResnetGenerator3D(**gnet_kwargs)
 
             else:
                 raise f'Resnet generators only specified for 2D or 3D, not {self.ndims}D'
@@ -90,28 +92,25 @@ class SplitCycleGAN():
 
     # TODO: Add options for resnet, unet --> pass kwargs, throw out type (temporary)
     def get_discriminator(self, dnet_kwargs=None):
-        if self.ndims == 3: # 3D case
-            norm_instance = torch.nn.InstanceNorm3d
-        elif self.ndims == 2: # 2D case
-            norm_instance = torch.nn.InstanceNorm2d
-
         # Initiate norm_layer  based on norm_instance
-        norm_layer = functools.partial(norm_instance, affine=False, track_running_stats=False)
+        norm_layer = get_normalization(self.ndims)
+        self.dnet_kwargs.update({'norm_layer': norm_layer})
 
         if dnet_kwargs is None:
             dnet_kwargs = self.dnet_kwargs
 
         if self.dnet_type == 'unet': 
             # TODO
-            # discriminator = torch.nn.Sequential(UNet(**dnet_kwargs), torch.nn.Tanh())
-            raise f'Incomplete generator type requested: unet'
+            discriminator = torch.nn.Sequential(UNet(**dnet_kwargs), ngf = 64, output_nc = 1,
+                                                activation = torch.nn.Tanh())
+
                                         
         elif self.dnet_type == 'patchgan':
             if self.ndims == 2:
-                discriminator = NLayerDiscriminator(**dnet_kwargs, norm_layer=norm_layer)
+                discriminator = NLayerDiscriminator(**dnet_kwargs)
             
             elif self.ndims == 3:
-                discriminator = NLayerDiscriminator3D(**dnet_kwargs, norm_layer=norm_layer)
+                discriminator = NLayerDiscriminator3D(**dnet_kwargs)
         
         elif self.dnet_type == 'resnet': # TODO
             # TODO
