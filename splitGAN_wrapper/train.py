@@ -101,8 +101,8 @@ class SplitCycleGAN():
 
         if self.dnet_type == 'unet': 
             # TODO
-            discriminator = torch.nn.Sequential(UNet(**dnet_kwargs), ngf = 64, output_nc = 1,
-                                                activation = torch.nn.Tanh())
+            discriminator = torch.nn.Sequential(UNet(**dnet_kwargs), ngf = 64, fmap_inc_factor = None,
+                                                norm_layer = norm_layer, activation = torch.nn.Tanh())
 
                                         
         elif self.dnet_type == 'patchgan':
