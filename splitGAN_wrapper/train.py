@@ -1,21 +1,21 @@
 # General-purpose training script for SplitGAN image-to-image translation
 import os
-raygun = '/n/groups/htem/users/br128/raygun' # Import path for network architectures
-raygun = os.path.dirname()
+raygun = 'n.groups.htem.users.br128.raygun' # Import path for network architectures
+# raygun = os.path.dirname()
 import time
 import torch
 import functools
 import itertools
 import numpy as np
-from .train_options import TrainOptions
-from data import create_dataset
+from .base_options import BaseOptions
+from .data import create_dataset
 from .visualizer import Visualizer
-from raygun.residual_unet import ResidualUNet
-from raygun.unet import UNet
-from raygun.utils import *
-from raygun.CycleGAN.CycleGAN_Model import *
-from raygun.CycleGAN.CycleGAN_LossFunctions import *
-from raygun.CycleGAN.CycleGAN_Optimizers import *
+from .residual_unet import ResidualUNet
+from ..unet import UNet
+from ..utils import *
+from ..cycleGun.CycleGAN_Model import *
+from ..cycleGun.CycleGAN_LossFunctions import *
+from ..cycleGun.CycleGAN_Optimizers import *
 
 
 
@@ -179,7 +179,7 @@ class SplitCycleGAN():
 
 
 if __name__ == '__main__':
-    opt = TrainOptions().parse()   # get training options
+    opt = BaseOptions().parse()   # get training options
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
@@ -198,21 +198,21 @@ if __name__ == '__main__':
                           # TODO: update for further discriminator styles
                           dnet_kwargs = {
                                          'input_nc': 1
-                                        }
+                                        },
                           d_init_learning_rate = 0.00007, 
                           loss_kwargs = {
-                                         l1_loss = torch.nn.SmoothL1Loss(), 
-                                         g_lambda_dict= {'A': {'l1_loss': {'cycled': 10, 'identity': 0},
+                                         'l1_loss': torch.nn.SmoothL1Loss(), 
+                                         'g_lambda_dict': {'A': {'l1_loss': {'cycled': 10, 'identity': 0},
                                                             'gan_loss': {'fake': 1, 'cycled': 0},
                                                             },
                                                         'B': {'l1_loss': {'cycled': 10, 'identity': 0},
                                                             'gan_loss': {'fake': 1, 'cycled': 0},
                                                             },
                                                     },
-                                         d_lambda_dict= {'A': {'real': 1, 'fake': 1, 'cycled': 0},
+                                         'd_lambda_dict': {'A': {'real': 1, 'fake': 1, 'cycled': 0},
                                                         'B': {'real': 1, 'fake': 1, 'cycled': 0},
                                                     },
-                                         gan_mode='lsgan'
+                                         'gan_mode': 'lsgan'
                                          }, 
                           adam_betas = [0.5, 0.999], 
                           ndims = 3)
