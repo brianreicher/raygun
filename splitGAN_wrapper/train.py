@@ -1,29 +1,27 @@
 # General-purpose training script for SplitGAN image-to-image translation
 import os
-raygun = 'n.groups.htem.users.br128.raygun' # Import path for network architectures
-# raygun = os.path.dirname()
 import time
 import torch
 import functools
 import itertools
 import numpy as np
+from collections import OrderedDict
 from .base_options import BaseOptions
 from .data import create_dataset
 from .visualizer import Visualizer
-from .residual_unet import ResidualUNet
 from ..unet import UNet
 from ..utils import *
-from ..cycleGun.CycleGAN_Model import *
-from ..cycleGun.CycleGAN_LossFunctions import *
-from ..cycleGun.CycleGAN_Optimizers import *
-
+from ..residual_unet import ResidualUNet
+from ..CycleGAN.CycleGAN_Model import *
+from ..CycleGAN.CycleGAN_LossFunctions import Custom_Loss
+from ..CycleGAN.CycleGAN_Optimizers import *
 
 
 # Normalization layer helper func
-def get_normalization(ndims: int):
-    if ndims == 3:  # 3D case
+def get_normalization(n_dims: int):
+    if n_dims == 3:  # 3D case
         norm_instance = torch.nn.InstanceNorm3d
-    elif ndims == 2:  # 2D case
+    elif n_dims == 2:  # 2D case
         norm_instance = torch.nn.InstanceNorm2d
     # Initiate norm_layer  based on norm_instance
     norm_layer = functools.partial(norm_instance, affine=False, track_running_stats=False)
@@ -185,7 +183,7 @@ if __name__ == '__main__':
     print('The number of training images = %d' % dataset_size)
     
     # TODO: initialize model
-    model = SplitCycleGAN(gnet_type = 'resnet', 
+    model = SplitCycleGAN(gnet_type='resnet',
                           gnet_kwargs={
                                        'input_nc': 1,
                                        'output_nc': 1,
@@ -194,7 +192,7 @@ if __name__ == '__main__':
                                        'n_blocks': 9, 
                                        },
                           g_init_learning_rate = 0.00004, 
-                          dnet_type = 'patch_gan', 
+                          dnet_type='patch_gan',
                           # TODO: update for further discriminator styles
                           dnet_kwargs = {
                                          'input_nc': 1
