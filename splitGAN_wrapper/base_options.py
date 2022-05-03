@@ -2,7 +2,6 @@ import argparse
 import os
 from util import util
 import torch
-import models
 import data
 
 
@@ -72,8 +71,8 @@ class BaseOptions():
         opt, _ = parser.parse_known_args()
 
         # modify model-related parser options
-        model_name = opt.model
-        model_option_setter = models.get_option_setter(model_name)
+        # model_name = opt.model
+        # model_option_setter = models.get_option_setter(model_name)
         parser = model_option_setter(parser, self.isTrain)
         opt, _ = parser.parse_known_args()  # parse again with new defaults
 
