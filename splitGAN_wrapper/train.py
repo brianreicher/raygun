@@ -32,7 +32,7 @@ class SplitCycleGAN():
 
     def __init___(self, gnet_type, gnet_kwargs, g_init_learning_rate, dnet_type, dnet_kwargs, 
                     d_init_learning_rate, loss_kwargs, adam_betas, ndims):
-        # Initate generator
+        # Initiate generator
         self.gnet_type = gnet_type
         self.gnet_kwargs = gnet_kwargs
         self.g_init_learning_rate = g_init_learning_rate
@@ -40,7 +40,7 @@ class SplitCycleGAN():
         self.dnet_type = dnet_type
         self.dnet_kwargs = dnet_kwargs
         self.d_init_learning_rate = d_init_learning_rate
-        # Initiate loss and optmizer
+        # Initiate loss and optimizer
         # self.loss_style = loss_style
         self.loss_kwargs = loss_kwargs
         self.adam_betas = adam_betas
@@ -99,10 +99,9 @@ class SplitCycleGAN():
 
         if self.dnet_type == 'unet': 
             # TODO
-            discriminator = torch.nn.Sequential(UNet(**dnet_kwargs), ngf = 64, fmap_inc_factor = None,
-                                                norm_layer = norm_layer, activation = torch.nn.Tanh())
+            discriminator = torch.nn.Sequential(UNet(**dnet_kwargs, ngf=64, fmap_inc_factor=None,
+                                                norm_layer=norm_layer, activation=torch.nn.Tanh()))
 
-                                        
         elif self.dnet_type == 'patchgan':
             if self.ndims == 2:
                 discriminator = NLayerDiscriminator(**dnet_kwargs)
@@ -110,7 +109,7 @@ class SplitCycleGAN():
             elif self.ndims == 3:
                 discriminator = NLayerDiscriminator3D(**dnet_kwargs)
         
-        elif self.dnet_type == 'resnet': # TODO
+        elif self.dnet_type == 'resnet':  # TODO
             # TODO
             raise f'Incomplete generator type requested: resnet'
 
@@ -191,14 +190,14 @@ if __name__ == '__main__':
                                        'ngf': 64,
                                        'n_blocks': 9, 
                                        },
-                          g_init_learning_rate = 0.00004, 
+                          g_init_learning_rate=0.00004,
                           dnet_type='patch_gan',
                           # TODO: update for further discriminator styles
-                          dnet_kwargs = {
+                          dnet_kwargs={
                                          'input_nc': 1
                                         },
                           d_init_learning_rate = 0.00007, 
-                          loss_kwargs = {
+                          loss_kwargs={
                                          'l1_loss': torch.nn.SmoothL1Loss(), 
                                          'g_lambda_dict': {'A': {'l1_loss': {'cycled': 10, 'identity': 0},
                                                             'gan_loss': {'fake': 1, 'cycled': 0},

@@ -1,6 +1,6 @@
 import importlib
 import torch.utils.data
-from data.base_dataset import BaseDataset
+# from data.base_dataset import BaseDataset
 
 
 def find_dataset_using_name(dataset_name):
@@ -11,11 +11,11 @@ def find_dataset_using_name(dataset_name):
     and it is case-insensitive.
     """
     dataset_filename = "data." + dataset_name + "_dataset"
-    datasetlib = importlib.import_module(dataset_filename)
+    dataset_lib = importlib.import_module(dataset_filename)
 
     dataset = None
     target_dataset_name = dataset_name.replace('_', '') + 'dataset'
-    for name, cls in datasetlib.__dict__.items():
+    for name, cls in dataset_lib.__dict__.items():
         if name.lower() == target_dataset_name.lower() \
            and issubclass(cls, BaseDataset):
             dataset = cls
@@ -39,8 +39,8 @@ def create_dataset(opt):
         This is the main interface between this package and 'train.py'/'test.py'
 
     Example:
-        >>> from data import create_dataset
-        >>> dataset = create_dataset(opt)
+        # >>> from data import create_dataset
+        # >>> dataset = create_dataset(opt)
     """
     data_loader = CustomDatasetDataLoader(opt)
     dataset = data_loader.load_data()
