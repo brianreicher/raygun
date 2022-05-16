@@ -1,6 +1,6 @@
 import argparse
 import os
-from util import util
+from utilities import util
 import torch
 import data
 

@@ -6,25 +6,17 @@ import torch
 import functools
 import itertools
 import numpy as np
+sys.path.append('/Users/brianreicher/Documents/GitHub/raygun/')
 from collections import OrderedDict
-# from base_options import BaseOptions
-# from data import create_dataset
-# from visualizer import Visualizer
-
-sys.path.append('/n/groups/htem/users/br128/raygun/')
+from splitGAN_wrapper.base_options import *
+from splitGAN_wrapper.data import *
+from splitGAN_wrapper.visualizer import *
 from CycleGAN.CycleGAN_Model import *
-from CycleGAN.CycleGAN_LossFunctions import CustomLoss
+from CycleGAN.CycleGAN_LossFunctions import *
 from CycleGAN.CycleGAN_Optimizers import *
-import utils
-from residual_unet import ResidualUNet
-from unet import Unet
-
-# from unet import UNet
-# from ..utils import *
-# from ..residual_unet import ResidualUNet
-# from ..CycleGAN.CycleGAN_Model import *
-# from ..CycleGAN.CycleGAN_LossFunctions import Custom_Loss
-# from ..CycleGAN.CycleGAN_Optimizers import *
+from utils import *
+from residual_unet import *
+from unet import *
 
 
 # Normalization layer helper func
@@ -41,7 +33,7 @@ def get_normalization(n_dims: int):
 class SplitCycleGAN():
 
     def __init___(self, gnet_type, gnet_kwargs, g_init_learning_rate, dnet_type, dnet_kwargs, 
-                    d_init_learning_rate, loss_kwargs, adam_betas, ndims):
+                  d_init_learning_rate, loss_kwargs, adam_betas, ndims):
         # Initiate generator
         self.gnet_type = gnet_type
         self.gnet_kwargs = gnet_kwargs
