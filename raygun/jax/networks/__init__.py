@@ -1,3 +1,3 @@
 """
-    Network architectures
+    JAX network architectures
 """
