@@ -115,7 +115,7 @@ class ConvDownsample(hk.Module):
     
     def __init__(
                 self,
-                input_nc,
+                # input_nc,
                 output_nc,
                 kernel_sizes,
                 downsample_factor,
@@ -218,7 +218,7 @@ class MaxDownsample(hk.Module):  # TODO: check data format type
         return
     
 
-class Upsample(hk.module):
+class Upsample(hk.Module):
     
     def __init__(
             self,
@@ -348,7 +348,7 @@ class UNet(hk.Module):
             padding_type='valid',
             residual=False,
             norm_layer=None,
-            add_noise=False
+            # add_noise=False
             # fov=(1, 1, 1),
             # voxel_size=(1, 1, 1),
             # num_fmaps_out=None
