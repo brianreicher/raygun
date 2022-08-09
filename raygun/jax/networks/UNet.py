@@ -193,8 +193,9 @@ class MaxDownsample(hk.Module):  # TODO: check data format type
         self.flexible = flexible
         
         pool = hk.MaxPool
-        self.down = pool(downsample_factor,
-                         stride = downsample_factor)
+        self.down = pool(window_shape=downsample_factor,
+                                  strides=downsample_factor,
+                                  padding='VALID')
     
     def forward(self, x):
         if self.flexible:
@@ -349,9 +350,6 @@ class UNet(hk.Module):
             residual=False,
             norm_layer=None,
             # add_noise=False
-            # fov=(1, 1, 1),
-            # voxel_size=(1, 1, 1),
-            # num_fmaps_out=None
             ):
         
         super().__init__()
@@ -409,7 +407,7 @@ class UNet(hk.Module):
             self.l_down = [MaxDownsample(downsample_factors[level])
                                                 for level in range(self.num_levels-1)]
         elif downsample_method.lower() == 'convolve':
-            self.l_down = [ConvDownsample(ngf*fmap_inc_factor**level,
+            self.l_down = [ConvDownsample(
                                                                 ngf*fmap_inc_factor**(level + 1),
                                                                 kernel_size_down[level][0],
                                                                 downsample_factors[level],
@@ -444,18 +442,23 @@ class UNet(hk.Module):
                                     for level in range(self.num_levels - 1)]
                                     for _ in range(self.num_heads)]
         
-    def rec_forward(self, level,f_in):
+    def rec_forward(self, level, f_in, total_level):
+    
+        prefix = "    "*(total_level-1-level)
+        print(prefix + "Creating U-Net layer %i" % (total_level-1-level))
+        print(prefix + "f_in: " + str(f_in.shape))
+
         # index of level in layer arrays
         i = self.num_levels - level - 1
 
         # convolve
         f_left = self.l_conv[i](f_in)
+        print(prefix + "f_left: " + str(f_left.shape))
 
         # end of recursion
         if level == 0:
-            
-            if self.noise_layer is not None:
-                f_left = self.noise_layer(f_left)
+
+            print(prefix + "bottom layer")
             fs_out = [f_left]*self.num_heads
 
         else:
@@ -464,13 +467,15 @@ class UNet(hk.Module):
             g_in = self.l_down[i](f_left)
 
             # nested levels
-            gs_out = self.rec_forward(level - 1, g_in)
+            gs_out = self.rec_forward(level - 1, g_in, total_level=total_level)
+            print(prefix + "g_out: " + str(gs_out[0].shape))
 
             # up, concat, and crop
             fs_right = [
                 self.r_up[h][i](f_left, gs_out[h])
                 for h in range(self.num_heads)
             ]
+            print(prefix + "f_right: " + str(fs_right[0].shape))
 
             # convolve
             fs_out = [
@@ -478,12 +483,14 @@ class UNet(hk.Module):
                 for h in range(self.num_heads)
             ]
 
+        print(prefix + "f_out: " + str(fs_out[0].shape))
+
         return fs_out
     
     
     def forward(self, x):
 
-        y = self.rec_forward(self.num_levels - 1, x)
+        y = self.rec_forward(self.num_levels - 1, x, total_level=self.num_levels)
 
         if self.num_heads == 1:
             return y[0]
