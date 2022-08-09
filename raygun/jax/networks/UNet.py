@@ -1,5 +1,6 @@
 #%%
 import math
+import numpy as np
 import jax
 import haiku as hk
 #%%
@@ -8,7 +9,7 @@ class ConvPass(hk.Module):
     def __init__(
             self,
             input_nc,
-            ouput_nc,
+            output_nc,
             kernel_sizes,
             activation,
             padding='VALID',
@@ -53,7 +54,7 @@ class ConvPass(hk.Module):
             try:
                 layers.append(
                     conv(
-                        output_channels=ouput_nc,
+                        output_channels=output_nc,
                         kernel_shape=kernel_size,
                         padding=padding,
                         # padding_mode=padding_mode,
@@ -75,7 +76,7 @@ class ConvPass(hk.Module):
             except KeyError:
                 raise RuntimeError("%dD convolution not implemented" % self.dims)
 
-            if norm_layers is not None:
+            if norm_layer is not None:
                 layers.append(norm_layer(output_nc))
                 
             if not (residual and i == (len(kernel_sizes)-1)):
@@ -112,15 +113,16 @@ class ConvPass(hk.Module):
 class ConvDownsample(hk.Module):
     
     def __init__(
-            self,
-            input_nc,
-            output_nc,
-            kernel_sizes,
-            downsample_factor,
-            activation,
-            padding='valid',
-            padding_mode='reflect',
-            norm_layer=None):
+                self,
+                input_nc,
+                output_nc,
+                kernel_sizes,
+                downsample_factor,
+                activation,
+                padding='valid',
+                padding_mode='reflect',
+                norm_layer=None,
+                data_format='NCDHW'):
                
         super().__init__()
 
@@ -156,8 +158,8 @@ class ConvDownsample(hk.Module):
         try:
             layers.append(
                 conv(
-                    output_channels=ouput_nc,
-                    kernel_shape=kernel_size,
+                    output_channels=output_nc,
+                    kernel_shape=kernel_sizes,
                     stride=downsample_factor,
                     padding=padding,
                     # padding_mode=padding_mode,
@@ -166,7 +168,7 @@ class ConvDownsample(hk.Module):
         except KeyError:
             raise RuntimeError("%dD convolution not implemented" % self.dims)
 
-        if norm_layers is not None:
+        if norm_layer is not None:
             layers.append(norm_layer(output_nc))
             
         layers.append(self.activation)
@@ -184,7 +186,7 @@ class MaxDownsample(hk.Module):  # TODO: check data format type
         
         super().__init__()
     
-        self.dims = len(dowmsample_factor)
+        self.dims = len(downsample_factor)
         self.downsample_factor = downsample_factor
         self.flexible = flexible
         
@@ -211,7 +213,9 @@ class MaxDownsample(hk.Module):  # TODO: check data format type
                         size,
                         self.downsample_factor,
                         self.dims - d))
+            
         return
+    
 #%%
 class Upsample(hk.module):
     
@@ -345,4 +349,5 @@ class UNet(hk.Module):
             # fov=(1, 1, 1),
             # voxel_size=(1, 1, 1),
             # num_fmaps_out=None
-            ):          
+            ):
+        pass
