@@ -1,6 +1,6 @@
 import sys
 sys.path.append('/n/groups/htem/users/br128/raygun/')
-from raygun.jax.networks.UNet import *
+from raygun.jax.networks.UNet import UNet
 import os
 import jax
 import jax.numpy as jnp
@@ -68,18 +68,12 @@ class Model(GenericJaxModel):
                 self.unet = UNet(
                     ngf=24,
                     fmap_inc_factor=3,
-                    downsample_factors=[[2,2,2],[2,2,2],[2,2,2]],
-                    )
-                self.conv = ConvPass(
-                    kernel_sizes=[[1,1,1]],
-                    output_nc=3,
-                    input_nc=3,
-                    activation='sigmoid',
+                    downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
                     )
 
             def __call__(self, x):
-                return self.conv(self.unet(x))
-                # return self.unet(x)
+                # return self.conv(self.unet(x))
+                return self.unet(x)
 
         def _forward(x):
             net = MyModel()

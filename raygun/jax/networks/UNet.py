@@ -1,5 +1,5 @@
 import math
-import numpy as np
+import numpy as  np
 import jax
 import haiku as hk
 
@@ -192,31 +192,42 @@ class MaxDownsample(hk.Module):  # TODO: check data format type
         self.downsample_factor = downsample_factor
         self.flexible = flexible
         
-        pool = hk.MaxPool
-        self.down = pool(window_shape=downsample_factor,
+        self.down = hk.MaxPool(window_shape=downsample_factor,
                                   strides=downsample_factor,
                                   padding='VALID')
     
-    def forward(self, x):
-        if self.flexible:
-            try:
-                return self.down(x)
-            except:
-                self.check_mismatch(x.size())
-        else:
-            self.check_mismatch(x.size())
-            return self.down(x)
+    # def forward(self, x):
+    #     if self.flexible:
+    #         try:
+    #             return self.down(x)
+    #         except:
+    #             self.check_mismatch(x.size())
+    #     else:
+    #         self.check_mismatch(x.size())
+    #         return self.down(x)
     
-    def check_mismatch(self, size):
-        for d in range(1, self.dims+1):
-            if size[-d] % self.downsample_factor[-d] != 0:
+    # def check_mismatch(self, size):
+    #     for d in range(1, self.dims+1):
+    #         if size[-d] % self.downsample_factor[-d] != 0:
+    #             raise RuntimeError(
+    #                 "Can not downsample shape %s with factor %s, mismatch "
+    #                 "in spatial dimension %d" % (
+    #                     size,
+    #                     self.downsample_factor,
+    #                     self.dims - d))
+    #     return self.down(size)
+    def __call__(self, x):
+    
+        for d in range(1, self.dims + 1):
+            if x.shape[-d] % self.downsample_factor[-d] != 0:
                 raise RuntimeError(
                     "Can not downsample shape %s with factor %s, mismatch "
                     "in spatial dimension %d" % (
-                        size,
+                        x.shape,
                         self.downsample_factor,
                         self.dims - d))
-        return
+
+        return self.down(x)
     
 
 class Upsample(hk.Module):
@@ -230,7 +241,7 @@ class Upsample(hk.Module):
             next_conv_kernel_sizes=None,
             data_format='NCDHW'):
 
-        super().__init__()
+        super(Upsample, self).__init__()
         
         if crop_factor is not None:
             assert next_conv_kernel_sizes is not None, "crop_factor and next_conv_kernel_sizes have to be given together"
@@ -315,7 +326,7 @@ class Upsample(hk.Module):
 
         return x[slices]
 
-    def forward(self, f_left, g_out):
+    def __call__(self, f_left, g_out):
 
         g_up = self.up(g_out)
 
@@ -431,9 +442,9 @@ class UNet(hk.Module):
         self.r_conv = [[ConvPass(
                                     ngf*fmap_inc_factor**level +
                                     ngf*fmap_inc_factor**(level + 1),
-                                    ngf*fmap_inc_factor**level
-                                    if output_nc is None or level != 0
-                                    else output_nc,
+                                    ngf*fmap_inc_factor**level,
+                                    # if output_nc is None or level != 0
+                                    # else output_nc,
                                     kernel_size_up[level],
                                     activation=activation,
                                     padding=padding_type,
