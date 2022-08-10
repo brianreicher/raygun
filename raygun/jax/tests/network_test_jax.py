@@ -175,7 +175,7 @@ if __name__ == "__main__":
         'gt': gt,
         'mask': mask,
     }
-    rng = jax.random.PRNGKey(42)
+    rng: KeyArray= jax.random.PRNGKey(42)
 
     # init model
     if n_devices > 1:
@@ -186,7 +186,7 @@ if __name__ == "__main__":
         single_device_inputs = {
             'raw': raw,
             'gt': gt,
-            'mask': mask,
+            'mask': mask
         }
         rng = jnp.broadcast_to(rng, (n_devices,) + rng.shape)
         model_params = jax.pmap(my_model.initialize)(rng, single_device_inputs)
