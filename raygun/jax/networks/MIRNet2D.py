@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import numpy as np
 # from pdb import set_trace as stx
 
-from raygun.utils.antialias import Downsample as downsamp
+from raygun.jax.utils.antialias import Downsample as downsamp
 
 
 

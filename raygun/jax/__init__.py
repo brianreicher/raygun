@@ -1,3 +1,3 @@
 """
-    Main PyTorch package
+    Main JAX package
 """

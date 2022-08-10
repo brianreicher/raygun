@@ -14,22 +14,22 @@ class ConvPass(hk.Module):
             activation,
             padding='VALID',
             residual=False,
-            # padding_mode='reflect',
             norm_layer=None,
             data_format='NCDHW'):
 
         super().__init__()
 
+        # if activation is not None:
+        #     if isinstance(activation, str):
+        #         self.activation = getattr(jax.nn, activation)
+        #     else:
+        #         self.activation = activation  # assume activation is a defined function
+        # else:
+        #     self.activation = jax.numpy.identity
         if activation is not None:
-            if isinstance(activation, str):
-                self.activation = getattr(jax.nn, activation)
-            else:
-                self.activation = activation()  # assume activation is a defined function
-        else:
-            self.activation = jax.numpy.identity()
-        
+            activation = getattr(jax.nn, activation)
+            
         self.residual = residual
-        self.padding = padding
         
         layers = []
 
@@ -99,7 +99,7 @@ class ConvPass(hk.Module):
 
         return x[slices]
     
-    def forward(self, x):
+    def __call__(self, x):
         if not self.residual:
             return self.conv_pass(x)
         else:
@@ -109,7 +109,60 @@ class ConvPass(hk.Module):
             else:
                 init_x = self.x_init_map(x)
             return self.activation(init_x + res)  
+# class ConvPass(hk.Module):
+    
+#     def __init__(
+#             self,
+#             out_channels,
+#             kernel_sizes,
+#             activation,
+#             padding='VALID',
+#             data_format='NCDHW'):
 
+#         super().__init__()
+
+#         if activation is not None:
+#             activation = getattr(jax.nn, activation)
+
+#         layers = []
+
+#         for kernel_size in kernel_sizes:
+
+#             self.dims = len(kernel_size)
+
+#             conv = {
+#                 2: hk.Conv2D,
+#                 3: hk.Conv3D,
+#                 # 4: Conv4d  # TODO
+#             }[self.dims]
+
+#             if data_format is None:
+#                 in_data_format = {
+#                     2: 'NCHW',
+#                     3: 'NCDHW'
+#                 }[self.dims]
+#             else:
+#                 in_data_format = data_format
+
+#             try:
+#                 layers.append(
+#                     conv(
+#                         output_channels=out_channels,
+#                         kernel_shape=kernel_size,
+#                         padding=padding,
+#                         data_format=in_data_format))
+#             except KeyError:
+#                 raise RuntimeError(
+#                     "%dD convolution not implemented" % self.dims)
+
+#             if activation is not None:
+#                 layers.append(activation)
+
+#         self.conv_pass = hk.Sequential(layers)
+
+#     def __call__(self, x):
+
+#         return self.conv_pass(x)
 
 class ConvDownsample(hk.Module):
     
@@ -175,7 +228,7 @@ class ConvDownsample(hk.Module):
         layers.append(self.activation)
         self.conv_pass = hk.Sequential(layers)
     
-    def forward(self, x):
+    def __call__(self, x):
         return self.conv_pass(x)
 
 
@@ -196,39 +249,26 @@ class MaxDownsample(hk.Module):  # TODO: check data format type
                                   strides=downsample_factor,
                                   padding='VALID')
     
-    # def forward(self, x):
-    #     if self.flexible:
-    #         try:
-    #             return self.down(x)
-    #         except:
-    #             self.check_mismatch(x.size())
-    #     else:
-    #         self.check_mismatch(x.size())
-    #         return self.down(x)
-    
-    # def check_mismatch(self, size):
-    #     for d in range(1, self.dims+1):
-    #         if size[-d] % self.downsample_factor[-d] != 0:
-    #             raise RuntimeError(
-    #                 "Can not downsample shape %s with factor %s, mismatch "
-    #                 "in spatial dimension %d" % (
-    #                     size,
-    #                     self.downsample_factor,
-    #                     self.dims - d))
-    #     return self.down(size)
     def __call__(self, x):
+        if self.flexible:
+            try:
+                return self.down(x)
+            except:
+                self.check_mismatch(x.size())
+        else:
+            self.check_mismatch(x.size())
+            return self.down(x)
     
-        for d in range(1, self.dims + 1):
-            if x.shape[-d] % self.downsample_factor[-d] != 0:
+    def check_mismatch(self, size):
+        for d in range(1, self.dims+1):
+            if size[-d] % self.downsample_factor[-d] != 0:
                 raise RuntimeError(
                     "Can not downsample shape %s with factor %s, mismatch "
                     "in spatial dimension %d" % (
-                        x.shape,
+                        size,
                         self.downsample_factor,
                         self.dims - d))
-
-        return self.down(x)
-    
+       
 
 class Upsample(hk.Module):
     
@@ -357,13 +397,13 @@ class UNet(hk.Module):
             num_heads=1,
             constant_upsample=False,
             downsample_method='max',
-            padding_type='valid',
+            padding_type='VALID',
             residual=False,
             norm_layer=None,
-            # add_noise=False
+            name=None
             ):
         
-        super().__init__()
+        super().__init__(name=name)
         self.ndims = len(downsample_factors[0])
         self.num_levels = len(downsample_factors) + 1
         self.num_heads = num_heads
@@ -411,7 +451,6 @@ class UNet(hk.Module):
                                      norm_layer=norm_layer)
                                      for level in range(self.num_levels)
                                      ]
-        self.dims = self.l_conv[0].dims
         
         # Left downsample
         if downsample_method.lower() == 'max':
@@ -499,7 +538,7 @@ class UNet(hk.Module):
         return fs_out
     
     
-    def forward(self, x):
+    def __call__(self, x):
 
         y = self.rec_forward(self.num_levels - 1, x, total_level=self.num_levels)
 

@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from tqdm import trange
 torch.cuda.set_device(1)
 
+
 # %%
 class Test():
     def __init__(self, 

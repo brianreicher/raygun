@@ -1,3 +1,4 @@
+#%%
 import os
 import jax
 import jax.numpy as jnp
@@ -66,11 +67,6 @@ class Model(GenericJaxModel):
                     num_fmaps=24,
                     fmap_inc_factor=3,
                     downsample_factors=[[2,2,2],[2,2,2],[2,2,2]],
-                    )
-                self.conv = ConvPass(
-                    kernel_sizes=[[1,1,1]],
-                    out_channels=3,
-                    activation='sigmoid',
                     )
 
             def __call__(self, x):
@@ -150,7 +146,7 @@ class Model(GenericJaxModel):
         else:
             loss_scale = jmp.NoOpLossScale()
         return Params(weight, opt_state, loss_scale)
-
+#%%
 
 def split(arr, n_devices):
     """Splits the first axis of `arr` evenly across the number of devices."""

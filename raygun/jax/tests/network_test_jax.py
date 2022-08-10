@@ -1,7 +1,5 @@
-import sys
-sys.path.append('/n/groups/htem/users/br128/raygun/')
-from raygun.jax.networks.UNet import UNet
-import os
+#%%
+from raygun.jax.networks import UNet
 import jax
 import jax.numpy as jnp
 from jax import jit
@@ -13,7 +11,6 @@ import time
 # from funlib.learn.jax.models import UNet, ConvPass
 
 from typing import Tuple, Any, NamedTuple, Dict
-
 
 '''To test model with some dummy input and output, run with command
 
@@ -53,13 +50,12 @@ class GenericJaxModel():
     def train_step(self, inputs, pmapped):
         raise RuntimeError("Unimplemented")
 
-
+#%%
 class Model(GenericJaxModel):
 
     def __init__(self):
         super().__init__()
 
-        # we encapsulate the UNet and the ConvPass in one hk.Module
         # to make assigning precision policy easier
         class MyModel(hk.Module):
 
@@ -72,7 +68,6 @@ class Model(GenericJaxModel):
                     )
 
             def __call__(self, x):
-                # return self.conv(self.unet(x))
                 return self.unet(x)
 
         def _forward(x):
@@ -140,6 +135,7 @@ class Model(GenericJaxModel):
 
         self.train_step = _train_step
 
+
     def initialize(self, rng_key, inputs, is_training=True):
         weight = self.model.init(rng_key, inputs['raw'])
         opt_state = self.opt.init(weight)
@@ -148,72 +144,69 @@ class Model(GenericJaxModel):
         else:
             loss_scale = jmp.NoOpLossScale()
         return Params(weight, opt_state, loss_scale)
-
+#%%
 
 def split(arr, n_devices):
     """Splits the first axis of `arr` evenly across the number of devices."""
     return arr.reshape(n_devices, arr.shape[0] // n_devices, *arr.shape[1:])
 
-
 def create_network():
     # returns a model that Gunpowder `Predict` and `Train` node can use
     return Model()
 
+#%%
+my_model = Model()
 
-if __name__ == "__main__":
+n_devices = jax.local_device_count()
+batch_size = 4*n_devices
 
-    my_model = Model()
-
-    n_devices = jax.local_device_count()
-    batch_size = 4*n_devices
-
-    raw = jnp.ones([batch_size, 1, 132, 132, 132])
-    gt = jnp.zeros([batch_size, 3, 40, 40, 40])
-    mask = jnp.ones([batch_size, 3, 40, 40, 40])
-    inputs = {
+raw = jnp.ones([batch_size, 1, 132, 132, 132])
+gt = jnp.zeros([batch_size, 3, 40, 40, 40])
+mask = jnp.ones([batch_size, 3, 40, 40, 40])
+inputs = {
+    'raw': raw,
+    'gt': gt,
+    'mask': mask,
+}
+rng= jax.random.PRNGKey(42)
+#%%
+# init model
+if n_devices > 1:
+    # split input for pmap
+    raw = split(raw, n_devices)
+    gt = split(gt, n_devices)
+    mask = split(mask, n_devices)
+    single_device_inputs = {
         'raw': raw,
         'gt': gt,
-        'mask': mask,
+        'mask': mask
     }
-    rng: KeyArray= jax.random.PRNGKey(42)
+    rng = jnp.broadcast_to(rng, (n_devices,) + rng.shape)
+    model_params = jax.pmap(my_model.initialize)(rng, single_device_inputs)
 
-    # init model
+else:
+    model_params = my_model.initialize(rng, inputs, is_training=True)
+#%%
+# test forward
+y = jit(my_model.forward)(model_params, {'raw': raw})
+assert y['affs'].shape == (batch_size, 3, 40, 40, 40)
+
+# test train loop
+for _ in range(10):
+    t0 = time.time()
+
     if n_devices > 1:
-        # split input for pmap
-        raw = split(raw, n_devices)
-        gt = split(gt, n_devices)
-        mask = split(mask, n_devices)
-        single_device_inputs = {
-            'raw': raw,
-            'gt': gt,
-            'mask': mask
-        }
-        rng = jnp.broadcast_to(rng, (n_devices,) + rng.shape)
-        model_params = jax.pmap(my_model.initialize)(rng, single_device_inputs)
-
+        model_params, outputs, loss = jax.pmap(
+                            my_model.train_step,
+                            axis_name='num_devices',
+                            donate_argnums=(0,),
+                            static_broadcasted_argnums=(2,))(
+                            model_params, inputs, True)
     else:
-        model_params = my_model.initialize(rng, inputs, is_training=True)
+        model_params, outputs, loss = jax.jit(
+                            my_model.train_step,
+                            donate_argnums=(0,),
+                            static_argnums=(2,))(
+                            model_params, inputs, False)
 
-    # test forward
-    y = jit(my_model.forward)(model_params, {'raw': raw})
-    assert y['affs'].shape == (batch_size, 3, 40, 40, 40)
-
-    # test train loop
-    for _ in range(10):
-        t0 = time.time()
-
-        if n_devices > 1:
-            model_params, outputs, loss = jax.pmap(
-                                my_model.train_step,
-                                axis_name='num_devices',
-                                donate_argnums=(0,),
-                                static_broadcasted_argnums=(2,))(
-                                model_params, inputs, True)
-        else:
-            model_params, outputs, loss = jax.jit(
-                                my_model.train_step,
-                                donate_argnums=(0,),
-                                static_argnums=(2,))(
-                                model_params, inputs, False)
-
-        print(f'Loss: {loss}, took {time.time()-t0}s')
+    print(f'Loss: {loss}, took {time.time()-t0}s')
