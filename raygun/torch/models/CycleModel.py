@@ -1,16 +1,13 @@
-import torch
+from raygun.torch.models import FreezableModel
 import torch.nn.functional as F
 
-class CycleModel(torch.nn.Module):
-    def __init__(self, netG1, netG2, scale_factor_A=None, scale_factor_B=None, split=False):
-        super().__init__()
-        self.netG1 = netG1
-        self.netG2 = netG2
-        self.scale_factor_A = scale_factor_A
-        self.scale_factor_B = scale_factor_B
-        self.split = split
+class CycleModel(FreezableModel):
+    def __init__(self, netG1, netG2, scale_factor_A=None, scale_factor_B=None, split=False, **kwargs):
+        super().__init__(**locals())
         self.cycle = True
         self.crop_pad = None #TODO: Determine if this is depracated
+        self.output_arrays = ['fake_B', 'cycled_B', 'fake_A', 'cycled_A']
+        self.nets = [netG1, netG2]
     
     def sampling_bottleneck(self, array, scale_factor):
         size = array.shape[-len(scale_factor):]
@@ -19,7 +16,7 @@ class CycleModel(torch.nn.Module):
         return F.interpolate(down, size=size, mode=mode, align_corners=True)
     
     def set_crop_pad(self, crop_pad, ndims):
-        self.crop_pad = (slice(None,None,None),)*2 + (slice(crop_pad,-crop_pad),)*ndims
+        self.crop_pad = (slice(None,None,None),)*2 + (slice(crop_pad,-crop_pad),)*ndims 
 
     def forward(self, real_A=None, real_B=None): 
         self.real_A = real_A
