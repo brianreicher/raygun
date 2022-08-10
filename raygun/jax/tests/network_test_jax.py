@@ -50,7 +50,7 @@ class GenericJaxModel():
     def train_step(self, inputs, pmapped):
         raise RuntimeError("Unimplemented")
 
-#%%
+
 class Model(GenericJaxModel):
 
     def __init__(self):
@@ -144,7 +144,6 @@ class Model(GenericJaxModel):
         else:
             loss_scale = jmp.NoOpLossScale()
         return Params(weight, opt_state, loss_scale)
-#%%
 
 def split(arr, n_devices):
     """Splits the first axis of `arr` evenly across the number of devices."""

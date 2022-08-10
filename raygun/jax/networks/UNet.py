@@ -378,7 +378,7 @@ class Upsample(hk.Module):
         else:
             g_cropped = g_up
 
-        f_cropped = self.crop(f_left, g_cropped.size()[-self.dims:])
+        f_cropped = self.crop(f_left, g_cropped.shape[-self.dims:])
 
         return jax.lax.concatenate((f_cropped, g_cropped), dimension=1)
 
