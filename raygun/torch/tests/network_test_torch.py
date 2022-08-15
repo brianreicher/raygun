@@ -1,5 +1,6 @@
 #%%
 from functools import partial
+from operator import mod
 import numpy as np
 import torch
 from raygun.torch.networks import *
@@ -10,9 +11,11 @@ from tqdm import trange
 torch.cuda.set_device(1)
 
 
-class TorchTest():
+class TorchBuild():
     def __init__(self, 
                 net=None, 
+                activation=None,
+                norm=None, 
                 size=24, 
                 seed=42, 
                 noise_factor=3, 
@@ -65,7 +68,6 @@ class TorchTest():
             gt = self.data
                 
         noise = ((torch.randperm(self.size**2, device='cuda').reshape((self.size, self.size)).unsqueeze(0) / self.size**2) * 2 - 1).requires_grad_() # should always be mean=0 var=1
-        # noise = torch.rand_like(gt, device='cuda', requires_grad=True)
 
         img = (gt*noise) / self.noise_factor + (gt / self.noise_factor)
 
@@ -110,44 +112,50 @@ class TorchTest():
             self.show()
         return loss.item()
 
-
-def training_loop(model=ResNet(2), name='ResNet', steps=1000, show_every=200, **network_kwargs):
-    losses = {}
-    losses[name] = np.zeros((steps,))
-    ticker = trange(steps)
-    model = TorchTest(net=model)
-    data_src = TorchTest()
-    for step in ticker:
-        ticker_postfix = {}
-        patches, gt, is_face = data_src.get_data()            
-        losses[name][step] = model.step((step % show_every)==0, patches=patches, gt=gt)
-        ticker_postfix[name] = losses[name][step]
-        ticker.set_postfix(ticker_postfix)
-        
-        
-def eval_models(data_src, models):
-    outs = {}
-    patches, gt, is_face = data_src.get_data()
-    for name, model in models.items():
+#%%
+class TorchTrainTest():
+    
+    def __init__(self, net=ResNet(2), name='ResNet', **net_kwargs) -> None:
+        self.model = TorchBuild(net=net)  # TODO fix **net_kwargs
+        self.data_src = TorchBuild()
+        self.name = name
+    
+    def train_network(self, steps=1000, show_every=200):
+        self.losses = {}
+        name = self.name + '-loss'
+        self.losses[name] = np.zeros((steps,))
+        ticker = trange(steps)
+        for step in ticker:
+            ticker_postfix = {}
+            patches, gt, is_face = self.data_src.get_data()           
+            self.losses[name][step] = self.model.step((step % show_every)==0, patches=patches, gt=gt)
+            ticker_postfix[name] = self.losses[name][step]
+            ticker.set_postfix(ticker_postfix)
+            
+    # TODO fix eval_models()
+    def eval_models(model, name):
+        outs = {}
+        test = TorchBuild()
+        patches, gt, is_face = test.get_data()
         outs[name] = model.eval(show=False, patches=patches, gt=gt)
-    num = len(models.keys()) + 2
-    fig, axs = plt.subplots(1, num, figsize=(5*num, 5))
-    axs[0].imshow(data_src.batch2im(patches), cmap='gray', vmin=-1, vmax=1)
-    axs[0].set_title('Input')
-    gt = data_src.batch2im(gt)
-    axs[-1].imshow(gt, cmap='gray', vmin=-1, vmax=1)
-    axs[-1].set_title('Real')
-    for ax, name in zip(axs[1:-1], models.keys()):
-        ax.imshow(outs[name], cmap='gray', vmin=-1, vmax=1)
-        mse = torch.mean((gt - outs[name])**2)
-        ax.set_title(f'{name}: MSE={mse}')
-        
+        # num = len(models.keys()) + 2
+        fig, axs = plt.subplots(1, figsize=(5, 5))
+        axs[0].imshow(test.batch2im(patches), cmap='gray', vmin=-1, vmax=1)
+        axs[0].set_title('Input')
+        gt = test.batch2im(gt)
+        axs[-1].imshow(gt, cmap='gray', vmin=-1, vmax=1)
+        axs[-1].set_title('Real')
+        for ax, name in zip(axs[1:-1]):
+            ax.imshow(outs[name], cmap='gray', vmin=-1, vmax=1)
+            mse = torch.mean((gt - outs[name])**2)
+            ax.set_title(f'{name}: MSE={mse}')
+            
 
-def eval_plot(data_src, model, losses):
-    eval_models((data_src, model))
-    plt.figure(figsize=(15,10))
-    for name, loss in losses.items():
-        plt.plot(loss, label=name)
-    plt.title('Losses')
-    plt.ylim([0,.1])
-    plt.legend()
+    def eval_plot(self):
+        plt.figure(figsize=(15,10))
+        for name, loss in self.losses.items():
+            plt.plot(loss, label=name)
+        plt.title('Losses')
+        plt.ylim([0,.1])
+        plt.legend()
+    # %%
