@@ -1,20 +1,15 @@
 #%%
 from functools import partial
 import numpy as np
-import jax
-import haiku as hk
-import sys
-sys.path.append('/n/groups/htem/users/br128/raygun/')
-from utils import *
-from raygun.jax.networks.UNet import *  # TODO: argparse to take specified network into testing
+import torch
+from raygun.torch.networks import *
 from skimage import data
 import matplotlib.pyplot as plt
 from tqdm import trange
 torch.cuda.set_device(1)
 
-
 # %%
-class Test():
+class TorchTest():
     def __init__(self, 
                 net=None, 
                 activation=None,
@@ -26,14 +21,15 @@ class Test():
                 ind=31, 
                 name='',
                 **network_kwargs):
+        
         torch.manual_seed(seed)
-        if net is None:  # TODO REFACTOR TO JAX
+        if net is None:  
             if norm is None:
                 norm = partial(torch.nn.InstanceNorm2d, track_running_stats=True, momentum=0.01)
             if activation is None:
                 activation = torch.nn.ReLU
             self.net = torch.nn.Sequential(
-                            ResnetGenerator(1, 1, 32, norm, n_blocks=4, activation=activation), 
+                            ResNet(1, 1, 32, norm, n_blocks=4, activation=activation), 
                             torch.nn.Tanh()
                         ).to('cuda')
         else:
@@ -139,73 +135,28 @@ def eval_models(data_src, models):
         ax.set_title(f'{name}: MSE={mse}')
 
 #%%
-model = Test()
+model = TorchTest()
 patches, gt, out, is_face = model.forward()
 model.show()
 model.step(True)
 
 #%%
-model_kwargs = {
-                # 'activation': torch.nn.SELU
-                }
+def training_loop(model=UNet, steps=100, show_every=200):
+    losses = np.zeros((steps,))
 
-model_names = ['allTrain',
-            'allFix',
-            'switch_10',
-            'switch_200',
-            'switch_500',
-            'noNorm',
-            'noTrack']
-
-models = {}
-for name in model_names:
-    these_kwargs = model_kwargs.copy()
-    these_kwargs['name'] = name
-    if name == 'noNorm':
-        these_kwargs['norm'] = torch.nn.Identity
-    elif name == 'noTrack':
-        model_kwargs['norm'] = torch.nn.InstanceNorm2d
-    models[name] = Test(**these_kwargs)
-
-steps = 1000
-show_every = steps*2
-losses = {}
-means = np.zeros((steps,))
-vars = np.zeros((steps,))
-for name in model_names:
-    losses[name] = np.zeros((steps,))
-    
-ticker = trange(steps)
-models['allFix'].set_mode('fix_stats')
-data_src = Test()
-for step in ticker:
-    ticker_postfix = {}
-    patches, gt, is_face = data_src.get_data()
-    for name, model in models.items():
-        if 'switch' in name:
-            if (step % int(name.split('_')[-1])) == 0 and step > 0:
-                model.toggle_stat_fix()
-        losses[name][step] = model.step((step % show_every)==0, patches=patches, gt=gt)
-        ticker_postfix[name] = losses[name][step]
-    tempM, tempV = models['allTrain'].get_running_norm_stats()
-    means[step], vars[step] = tempM.mean(), tempV.mean()
-    ticker.set_postfix(ticker_postfix)
-
-#%%
-eval_models(data_src, models)
-# tempM, tempV = models['switch'].get_running_norm_stats()
-# print(f'For Switch training: Mean mean: {tempM.mean()}, Mean var: {tempV.mean()}')
-
-#%%
-plt.figure(figsize=(15,10))
-for name, loss in losses.items():
-    plt.plot(loss, label=name)
-plt.title('Losses')
-plt.ylim([0,.1])
-plt.legend()
- # %%
-plt.figure(figsize=(15,10))
-plt.plot(means, label='Means')
-plt.plot(vars, label='Variances')
-plt.legend()
-# %%
+    ticker = trange(steps)
+    model = TorchTest(net=model)
+    data_src = TorchTest()
+    for step in ticker:
+        ticker_postfix = {}
+        patches, gt, is_face = data_src.get_data()            
+        losses[step] = model.step((step % show_every)==0, patches=patches, gt=gt)
+        ticker_postfix = losses[step]
+        ticker.set_postfix(ticker_postfix)
+    eval_models((data_src, model))
+    plt.figure(figsize=(15,10))
+    for name, loss in losses.items():
+        plt.plot(loss, label=name)
+    plt.title('Losses')
+    plt.ylim([0,.1])
+    plt.legend()

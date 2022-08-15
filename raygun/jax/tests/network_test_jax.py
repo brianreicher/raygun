@@ -53,7 +53,7 @@ class Model(GenericJaxModel):
                     fmap_inc_factor=3,
                     downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
                     )
-
+               
             def __call__(self, x):
                 return self.unet(x)
 
