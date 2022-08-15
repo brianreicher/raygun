@@ -7,21 +7,8 @@ import haiku as hk
 import optax
 import jmp
 import time
-
-# from funlib.learn.jax.models import UNet, ConvPass
-
 from typing import Tuple, Any, NamedTuple, Dict
 
-'''To test model with some dummy input and output, run with command
-
-    `CUDA_VISIBLE_DEVICES=0 python unet_example.py`
-
-for single device training, or
-
-    `CUDA_VISIBLE_DEVICES=0,1,2,3 python unet_example.py`
-
-for multi-device training
-'''
 
 # PARAMETERS
 mp_training = True  # mixed-precision training using `jmp`
@@ -153,7 +140,7 @@ def create_network():
     # returns a model that Gunpowder `Predict` and `Train` node can use
     return Model()
 
-#%%
+
 my_model = Model()
 
 n_devices = jax.local_device_count()
@@ -188,8 +175,9 @@ else:
 #%%
 # test forward
 y = jit(my_model.forward)(model_params, {'raw': raw})
-assert y['affs'].shape == (batch_size, 3, 40, 40, 40)
 
+assert y['affs'].shape == (batch_size, 3, 40, 40, 40)
+#%%
 # test train loop
 for _ in range(10):
     t0 = time.time()
