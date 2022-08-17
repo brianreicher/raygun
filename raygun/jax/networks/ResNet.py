@@ -1,4 +1,3 @@
-
 import functools
 import torch
 from raygun.torch.networks.utils import NoiseBlock, ParameterizedNoiseBlock

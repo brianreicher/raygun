@@ -152,5 +152,3 @@ class TorchUnitTest(unittest.TestCase):
     
     def test_weight_size(self):
         pass
-        
-        
