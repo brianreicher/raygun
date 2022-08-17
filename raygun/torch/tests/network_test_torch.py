@@ -133,25 +133,6 @@ class TorchTrainTest():
             ticker_postfix[name] = self.losses[name][step]
             ticker.set_postfix(ticker_postfix)
             
-    # TODO fix eval_models()
-    def eval_models(model, name):
-        # outs = {}
-        # test = TorchBuild()
-        # patches, gt, is_face = test.get_data()
-        # outs[name] = model.eval(show=False, patches=patches, gt=gt)
-        # # num = len(models.keys()) + 2
-        # fig, axs = plt.subplots(1, figsize=(5, 5))
-        # axs[0].imshow(test.batch2im(patches), cmap='gray', vmin=-1, vmax=1)
-        # axs[0].set_title('Input')
-        # gt = test.batch2im(gt)
-        # axs[-1].imshow(gt, cmap='gray', vmin=-1, vmax=1)
-        # axs[-1].set_title('Real')
-        # for ax, name in zip(axs[1:-1]):
-        #     ax.imshow(outs[name], cmap='gray', vmin=-1, vmax=1)
-        #     mse = torch.mean((gt - outs[name])**2)
-        #     ax.set_title(f'{name}: MSE={mse}')
-        pass
-            
 
     def eval_plot(self):
         plt.figure(figsize=(15,10))

@@ -1,4 +1,3 @@
-#adapted from funlib.learn.torch.models
 
 from funlib.learn.torch.models.conv4d import Conv4d
 import math

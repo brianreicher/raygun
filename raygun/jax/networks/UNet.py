@@ -19,13 +19,14 @@ class ConvPass(hk.Module):
 
         super().__init__()
 
-        # if activation is not None:
-        #     if isinstance(activation, str):
-        #         self.activation = getattr(jax.nn, activation)
-        #     else:
-        #         self.activation = activation  # assume activation is a defined function
-        # else:
-        #     self.activation = jax.numpy.identity
+        if activation is not None:
+            if isinstance(activation, str):
+                self.activation = getattr(jax.nn, activation)
+            else:
+                self.activation = activation  # assume activation is a defined function
+        else:
+            self.activation = jax.numpy.identity
+            
         if activation is not None:
             activation = getattr(jax.nn, activation)
             
