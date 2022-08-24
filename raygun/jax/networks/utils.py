@@ -3,7 +3,6 @@
 # WRITTEN IN JAX BY BRIAN REICHER (NORTHEASTERN, 2022)
 import jax
 import haiku as hk
-import functools
 
 
 def get_norm_layers(net):  # TODO JAX
