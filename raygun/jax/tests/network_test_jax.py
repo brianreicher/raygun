@@ -1,5 +1,5 @@
 #%%
-from raygun.jax.networks import UNet
+from raygun.jax.networks import UNet, NLayerDiscriminator
 import jax
 import jax.numpy as jnp
 from jax import jit
@@ -48,14 +48,15 @@ class Model(GenericJaxModel):
 
             def __init__(self, name=None):
                 super().__init__(name=name)
-                self.unet = UNet(
-                    ngf=2,
-                    fmap_inc_factor=2,
-                    downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
-                    )
+                # self.net = UNet(
+                #     ngf=2,
+                #     fmap_inc_factor=2,
+                #     downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
+                #     )
+                self.net = NLayerDiscriminator.NLayerDiscriminator(ndims=2, ngf=2)
                
             def __call__(self, x):
-                return self.unet(x)
+                return self.net(x)
 
         def _forward(x):
             net = MyModel()
@@ -158,12 +159,14 @@ rng= jax.random.PRNGKey(42)
 
 # init model
 model_params = my_model.initialize(rng, inputs, is_training=True)
-#%%
-# test forward
-y = jit(my_model.forward)(model_params, {'raw': raw})
-#%%
-assert y['affs'].shape == (batch_size, 2, 40, 40, 40)
-#%%
+
+# #%%
+# # test forward
+# y = jit(my_model.forward)(model_params, {'raw': raw})
+# #%%
+# assert y['affs'].shape == (batch_size, 2, 40, 40, 40)
+
+
 # test train loop
 for _ in range(10):
     t0 = time.time()

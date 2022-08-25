@@ -1,6 +1,6 @@
 import functools
 import torch
-from raygun.torch.networks.utils import NoiseBlock, ParameterizedNoiseBlock
+from raygun.jax.utils import NoiseBlock, ParameterizedNoiseBlock
 
 class ResnetGenerator2D(torch.nn.Module):
     """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations, and (optionally) the injection of a feature map of random noise into the first upsampling layer.
