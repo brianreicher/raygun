@@ -5,5 +5,7 @@
 
 # Parts of experiments
 *.out
+*tensorboard*
+*checkpoint*
 *.zarr
 *.n5
