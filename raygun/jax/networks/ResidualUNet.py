@@ -5,7 +5,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from utils import NoiseBlock, ParameterizedNoiseBlock
+# from utils import NoiseBlock, ParameterizedNoiseBlock
+from raygun.torch.networks.utils import NoiseBlock, ParameterizedNoiseBlock
+
 
 class ConvPass(torch.nn.Module):
 
