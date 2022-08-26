@@ -1,5 +1,5 @@
 #%%
-from raygun.jax.networks import UNet
+from raygun.jax.networks import UNet, NLayerDiscriminator
 import jax
 import jax.numpy as jnp
 from jax import jit
@@ -9,7 +9,7 @@ import jmp
 import time
 from typing import Tuple, Any, NamedTuple, Dict
 
-#%%
+
 # PARAMETERS
 mp_training = True  # mixed-precision training using `jmp`
 learning_rate = 0.5e-4
@@ -48,12 +48,12 @@ class Model(GenericJaxModel):
 
             def __init__(self, name=None):
                 super().__init__(name=name)
-                self.net = UNet(
-                    ngf=2,
-                    fmap_inc_factor=2,
-                    downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
-                    )
-                # self.net = NLayerDiscriminator.NLayerDiscriminator(ndims=2, ngf=2)
+                # self.net = UNet(
+                #     ngf=2,
+                #     fmap_inc_factor=2,
+                #     downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
+                #     )
+                self.net = NLayerDiscriminator(ndims=2, ngf=2)
                
             def __call__(self, x):
                 return self.net(x)
