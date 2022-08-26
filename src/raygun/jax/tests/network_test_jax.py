@@ -1,5 +1,5 @@
 #%%
-from raygun.jax.networks import UNet, NLayerDiscriminator
+from raygun.jax.networks import UNet, NLayerDiscriminator2D
 import jax
 import jax.numpy as jnp
 from jax import jit
@@ -53,7 +53,7 @@ class Model(GenericJaxModel):
                 #     fmap_inc_factor=2,
                 #     downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
                 #     )
-                self.net = NLayerDiscriminator(ndims=2, ngf=2)
+                self.net = NLayerDiscriminator2D()
                
             def __call__(self, x):
                 return self.net(x)

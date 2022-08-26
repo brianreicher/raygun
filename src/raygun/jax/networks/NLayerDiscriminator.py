@@ -41,13 +41,13 @@ class NLayerDiscriminator2D(hk.Module):
         # nf_mult_prev = nf_mult
         nf_mult = min(2 ** n_layers, 8)
         sequence += [
-            hk.Conv2D(ngf * nf_mult, kernel_shape=kw, stride=1, padding=padw, with_bias=True),
+            hk.Conv2D(output_channels=ngf * nf_mult, kernel_shape=kw, stride=1, padding=padw, with_bias=True),
             # norm_layer(ngf * nf_mult),
             norm_layer(create_scale=True, create_offset=False, decay_rate=0.999),  # TODO FIX OFFSET AND DECAY RATE
             jax.nn.leaky_relu(0.2, True)
         ]
 
-        sequence += [hk.Conv2D(1, kernel_shape=kw, stride=1, padding=padw)]  # output 1 channel prediction map
+        sequence += [hk.Conv2D(output_channels=1, kernel_shape=kw, stride=1, padding=padw)]  # output 1 channel prediction map
         self.model = hk.Sequential(*sequence)
 
     @property
