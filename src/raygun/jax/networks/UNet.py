@@ -493,7 +493,7 @@ class UNet(hk.Module):
                                     for level in range(self.num_levels - 1)]
                                     for _ in range(self.num_heads)]
         
-    def rec_forward(self, level, f_in, total_level):
+    def rec_forward(self, level, f_in, total_level):  # TODO fix unet build
     
         prefix = "    "*(total_level-1-level)
         print(prefix + "Creating U-Net layer %i" % (total_level-1-level))
