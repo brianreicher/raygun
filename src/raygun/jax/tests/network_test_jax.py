@@ -1,6 +1,6 @@
 #%%
 import raygun
-from raygun.jax.networks import *
+from raygun.jax.networks import ResidualUNet, UNet, NLayerDiscriminator
 import jax
 import jax.numpy as jnp
 from jax import jit
@@ -47,11 +47,12 @@ class JAXModel(GenericJaxModel):
 
             def __init__(self, name=None):
                 super().__init__(name=name)
-                self.net = UNet(
-                    ngf=3,
-                    fmap_inc_factor=2,
-                    downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
-                    )
+                # self.net = ResidualUNet(
+                #     ngf=3,
+                #     fmap_inc_factor=2,
+                #     downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
+                #     )
+                self.net = NLayerDiscriminator(ndims=2, ngf=3)
                 # net = getattr(raygun.jax.networks, network_type)
                 # self.net = net(net_kwargs)
                
@@ -59,7 +60,7 @@ class JAXModel(GenericJaxModel):
                 return self.net(x)
 
         def _forward(x):  # Temporary set of _forward()
-            net = MyModel
+            net = MyModel()
             return net(x)
 
 
@@ -188,7 +189,7 @@ class NetworkTestJAX():  # TODO setup for **kwargs
             self.data_engine()
             
         self.rng = jax.random.PRNGKey(42)
-        self.model_params = self.model.initialize(rng_key=self.rng, inputs=self.inputs)
+        self.model_params = self.model.initialize(self.rng, self.inputs)
 
     # test train loop
     def train(self) -> None:

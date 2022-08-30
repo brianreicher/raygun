@@ -1,8 +1,8 @@
 import math
-import numpy as  np
+import jax.numpy as  jnp
 import jax
 import haiku as hk
-
+from raygun.jax.networks.utils import NoiseBlock, ParameterizedNoiseBlock
 
 class ConvPass(hk.Module):
     
@@ -68,7 +68,7 @@ class ConvPass(hk.Module):
                     self.x_init_map = conv(
                                 input_nc,
                                 output_nc,
-                                np.ones(self.dims, dtype=int),
+                                jnp.ones(self.dims, dtype=int),
                                 padding=padding, 
                                 # padding_mode=padding_mode, TODO
                                 bias=False,
@@ -110,60 +110,7 @@ class ConvPass(hk.Module):
             else:
                 init_x = self.x_init_map(x)
             return self.activation(init_x + res)  
-# class ConvPass(hk.Module):
-    
-#     def __init__(
-#             self,
-#             out_channels,
-#             kernel_sizes,
-#             activation,
-#             padding='VALID',
-#             data_format='NCDHW'):
 
-#         super().__init__()
-
-#         if activation is not None:
-#             activation = getattr(jax.nn, activation)
-
-#         layers = []
-
-#         for kernel_size in kernel_sizes:
-
-#             self.dims = len(kernel_size)
-
-#             conv = {
-#                 2: hk.Conv2D,
-#                 3: hk.Conv3D,
-#                 # 4: Conv4d  # TODO
-#             }[self.dims]
-
-#             if data_format is None:
-#                 in_data_format = {
-#                     2: 'NCHW',
-#                     3: 'NCDHW'
-#                 }[self.dims]
-#             else:
-#                 in_data_format = data_format
-
-#             try:
-#                 layers.append(
-#                     conv(
-#                         output_channels=out_channels,
-#                         kernel_shape=kernel_size,
-#                         padding=padding,
-#                         data_format=in_data_format))
-#             except KeyError:
-#                 raise RuntimeError(
-#                     "%dD convolution not implemented" % self.dims)
-
-#             if activation is not None:
-#                 layers.append(activation)
-
-#         self.conv_pass = hk.Sequential(layers)
-
-#     def __call__(self, x):
-
-#         return self.conv_pass(x)
 
 class ConvDownsample(hk.Module):
     
@@ -401,7 +348,8 @@ class UNet(hk.Module):
             padding_type='VALID',
             residual=False,
             norm_layer=None,
-            name=None
+            name=None,
+            add_noise = False
             ):
         
         super().__init__(name=name)

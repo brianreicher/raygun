@@ -1,6 +1,8 @@
 
 # ORIGINALLY WRITTEN BY TRI NGUYEN (HARVARD, 2021)
 # WRITTEN IN JAX BY BRIAN REICHER (NORTHEASTERN, 2022)
+#%%
+from ast import Raise
 import jax
 import haiku as hk
 
@@ -67,7 +69,7 @@ def init_weights(net, init_type='normal', init_gain=0.02, nonlinearity='relu'): 
     pass
 
 
-class NoiseBlock(hk.Module):
+class NoiseBlock():
     """Definies a block for producing and appending a feature map of gaussian noise with mean=0 and stdev=1"""
 
     def __init__(self):
@@ -76,18 +78,21 @@ class NoiseBlock(hk.Module):
     def __call__(self, x):  # TODO JAX tensors?
         shape = list(x.shape)
         shape[1] = 1 # only make one noise feature
-        noise = jax.numpy.empty(shape).to(x.device).normal_()
+        key = jax.random.PRNGKey(22)
+        noise = jax.random.normal(key=key, shape=shape)
         # noise = torch.empty(shape, device=x.device).normal_()
         # return torch.cat([x, noise.requires_grad_()], 1)
         return jax.numpy.concatenate(([x, noise]),1)
 
 
-class ParameterizedNoiseBlock(hk.Module):
+class ParameterizedNoiseBlock():
     """Definies a block for producing and appending a feature map of gaussian noise with mean and stdev defined by the first two feature maps of the incoming tensor"""
 
-    def __init__(self):
-        super().__init__()
+    # def __init__(self):
+    #     super().__init__()
 
-    def __call__(self, x):  # TODO JAX tensors?
-        noise = jax.random.normal(x[:,0,...], jax.nn.relu(x[:,1,...])).unsqueeze(1)
-        return jax.numpy.concatenate([x, noise], 1)
+    # def __call__(self, x):  # TODO JAX tensors?
+    #     key = jax.random.PRNGKey(22)
+    #     noise = jax.random.normal(key=key, x[:,0,...], jax.nn.relu(x[:,1,...])).unsqueeze(1)
+    #     return jax.numpy.concatenate([x, noise], 1)
+    pass
