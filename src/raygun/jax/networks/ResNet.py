@@ -10,7 +10,7 @@ class ResnetGenerator2D(hk.Module):
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
     """
 
-    def __init__(self, input_nc=1, output_nc=1, ngf=64, norm_layer= hk.BatchNorm, use_dropout=False, n_blocks=6, padding_type='reflect', activation=jax.nn.relu, add_noise=False, n_downsampling=2):
+    def __init__(self, input_nc=1, output_nc=1, ngf=64, norm_layer= hk.BatchNorm, use_dropout=False, n_blocks=6, padding_type='VALID', activation=jax.nn.relu, add_noise=False, n_downsampling=2):
         """Construct a Resnet-based generator
         Parameters:
             input_nc (int)      -- the number of channels in input images
@@ -46,20 +46,20 @@ class ResnetGenerator2D(hk.Module):
 
         model = []
         model += padder.copy()
-        model += [hk.Conv2D(ngf, kernel_shape=7, padding=p, bias=use_bias),
+        model += [hk.Conv2D(ngf, kernel_shape=7, padding=p, with_bias=use_bias),
                  norm_layer(ngf),
                  activation()]
 
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
-            model += [hk.Conv2D(ngf * mult, ngf * mult * 2, kernel_shape=3, stride=2, padding=updown_p, bias=use_bias),
+            model += [hk.Conv2D(ngf * mult, ngf * mult * 2, kernel_shape=3, stride=2, padding=updown_p, with_bias=use_bias),
                       norm_layer(ngf * mult * 2),
                       activation()]
 
         mult = 2 ** n_downsampling
         for i in range(n_blocks):       # add ResNet blocks
 
-            model += [ResnetBlock2D(ngf * mult, padding_type=padding_type.lower(), norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias, activation=activation)]
+            model += [ResnetBlock2D(ngf * mult, padding_type=padding_type.lower(), norm_layer=norm_layer, use_dropout=use_dropout, with_bias=use_bias, activation=activation)]
 
         if add_noise == 'param':                   # add noise feature if necessary
             # model += [ParameterizedNoiseBlock()]
@@ -73,7 +73,7 @@ class ResnetGenerator2D(hk.Module):
                                          int(ngf * mult / 2),
                                          kernel_shape=3, stride=2,
                                          padding=updown_p,
-                                         bias=use_bias),
+                                         with_bias=use_bias),
                       norm_layer(int(ngf * mult / 2)),
                       activation()]
         model += padder.copy()
@@ -128,14 +128,15 @@ class ResnetBlock2D(hk.Module):
         conv_block = []
         conv_block += padder.copy()
 
-        conv_block += [torch.nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim), activation()]
+        conv_block += [hk.Conv2D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(dim), activation()]
         if use_dropout:
-            conv_block += [torch.nn.Dropout(0.2)]
+            key = jax.random.PRNGKey(22)
+            conv_block += [hk.dropout(key, 0.2)]  # TODO
         
         conv_block += padder.copy()
-        conv_block += [torch.nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim)]
+        conv_block += [hk.Conv2D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(dim)]
 
-        return torch.nn.Sequential(*conv_block)
+        return hk.Sequential(*conv_block)
 
     def crop(self, x, shape):
         '''Center-crop x to match spatial dimensions given by shape.'''
@@ -143,7 +144,7 @@ class ResnetBlock2D(hk.Module):
         x_target_size = x.size()[:-2] + shape
 
         offset = tuple(
-            torch.div((a - b), 2, rounding_mode='trunc')
+            jax.lax.div((a - b), 2)
             for a, b in zip(x.size(), x_target_size))
 
         slices = tuple(
@@ -152,9 +153,9 @@ class ResnetBlock2D(hk.Module):
 
         return x[slices]
 
-    def forward(self, x):
+    def __call__(self, x):
         """Forward function (with skip connections)"""
-        if self.padding_type == 'valid': # crop for valid networks
+        if self.padding_type.upper() == 'VALID': # crop for valid networks
             res = self.conv_block(x)
             out = self.crop(x, res.size()[-2:]) + res
         else:
@@ -162,12 +163,12 @@ class ResnetBlock2D(hk.Module):
         return out
 
 
-class ResnetGenerator3D(torch.nn.Module):
+class ResnetGenerator3D(hk.Module):
     """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations, and (optionally) the injection of a feature map of random noise into the first upsampling layer.
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
     """
 
-    def __init__(self, input_nc=1, output_nc=1, ngf=64, norm_layer=torch.nn.BatchNorm3d, use_dropout=False, n_blocks=6, padding_type='reflect', activation=torch.nn.ReLU, add_noise=False, n_downsampling=2):
+    def __init__(self, input_nc=1, output_nc=1, ngf=64, norm_layer=hk.BatchNorm, use_dropout=False, n_blocks=6, padding_type='REFLECT', activation=jax.nn.relu, add_noise=False, n_downsampling=2):
         """Construct a Resnet-based generator
         Parameters:
             input_nc (int)      -- the number of channels in input images
@@ -184,68 +185,67 @@ class ResnetGenerator3D(torch.nn.Module):
         assert(n_blocks >= 0)
         super().__init__()
         if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == torch.nn.InstanceNorm3d
+            use_bias = norm_layer.func == hk.InstanceNorm
         else:
-            use_bias = norm_layer == torch.nn.InstanceNorm3d
+            use_bias = norm_layer == hk.InstanceNorm
         
         p = 0
         updown_p = 1
         padder = []
-        if padding_type.lower() == 'reflect':
-            padder = [torch.nn.ReflectionPad3d(3)]
-        elif padding_type.lower() == 'replicate':
-            padder = [torch.nn.ReplicationPad3d(3)]
-        elif padding_type.lower() == 'zeros':
+        # if padding_type.lower() == 'reflect':  # TODO JAX parallel?
+        #     padder = [torch.nn.ReflectionPad3d(3)]
+        if padding_type.upper() == 'REPLICATE':
+            padder = [hk.pad.same(3)]
+        elif padding_type.upper() == 'ZEROS':
             p = 3
-        elif padding_type.lower() == 'valid':
-            p = 'valid'
-            updown_p = 0
+        elif padding_type.upper() == 'VALID':
+            p = 'VALID'
+            updown_p = 0  # TODO 
 
         model = []
         model += padder.copy()
-        model += [torch.nn.Conv3d(input_nc, ngf, kernel_size=7, padding=p, bias=use_bias),
+        model += [hk.Conv3D(ngf, kernel_shape=7, padding=p, with_bias=use_bias),
                  norm_layer(ngf),
                  activation()]
 
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
-            model += [torch.nn.Conv3d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=updown_p, bias=use_bias), #TODO: Make actually use padding_type for every convolution (currently does zeros if not valid)
+            model += [hk.Conv3D(ngf * mult * 2, kernel_shape=3, stride=2, padding=updown_p, with_bias=use_bias), #TODO: Make actually use padding_type for every convolution (currently does zeros if not valid)
                       norm_layer(ngf * mult * 2),
                       activation()]
 
         mult = 2 ** n_downsampling
         for i in range(n_blocks):       # add ResNet blocks
 
-            model += [ResnetBlock3D(ngf * mult, padding_type=padding_type.lower(), norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias, activation=activation)]
+            model += [ResnetBlock3D(ngf * mult, padding_type=padding_type.upper(), norm_layer=norm_layer, use_dropout=use_dropout, with_bias=use_bias, activation=activation)]
 
-        if add_noise == 'param':                   # add noise feature if necessary
-            model += [ParameterizedNoiseBlock()]
-        elif add_noise:                   
+        if add_noise:                   
             model += [NoiseBlock()]
 
         for i in range(n_downsampling):  # add upsampling layers
             mult = 2 ** (n_downsampling - i)
-            model += [torch.nn.ConvTranspose3d(ngf * mult + (i==0 and (add_noise is not False)),
+            model += [hk.Conv3DTranspose(
                                          int(ngf * mult / 2),
-                                         kernel_size=3, stride=2,
-                                         padding=updown_p, output_padding=updown_p,
-                                         bias=use_bias),
+                                         kernel_shape=3, stride=2,
+                                         padding=updown_p,
+                                         with_bias=use_bias),
                       norm_layer(int(ngf * mult / 2)),
                       activation()]
         model += padder.copy()
-        model += [torch.nn.Conv3d(ngf, output_nc, kernel_size=7, padding=p)]
-        model += [torch.nn.Tanh()]
+        model += [hk.Conv3D(output_nc, kernel_shape=7, padding=p)]
+        model += [jax.nn.tanh()]
 
-        self.model = torch.nn.Sequential(*model)
+        self.model = hk.Sequential(*model)
 
-    def forward(self, input):
+    def __call__(self, input):
         """Standard forward"""
         return self.model(input)
 
-class ResnetBlock3D(torch.nn.Module):
+
+class ResnetBlock3D(hk.Module):
     """Define a Resnet block"""
 
-    def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias, activation=torch.nn.ReLU):
+    def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias, activation=jax.nn.relu):
         """Initialize the Resnet block
         A resnet block is a conv block with skip connections
         We construct a conv block with build_conv_block function,
@@ -256,7 +256,7 @@ class ResnetBlock3D(torch.nn.Module):
         self.conv_block = self.build_conv_block(dim, padding_type, norm_layer, use_dropout, use_bias, activation)
         self.padding_type = padding_type
 
-    def build_conv_block(self, dim, padding_type, norm_layer, use_dropout, use_bias, activation=torch.nn.ReLU):
+    def build_conv_block(self, dim, padding_type, norm_layer, use_dropout, use_bias, activation=jax.nn.relu):
         """Construct a convolutional block.
         Parameters:
             dim (int)           -- the number of channels in the conv layer.
@@ -269,28 +269,29 @@ class ResnetBlock3D(torch.nn.Module):
         """
         p = 0
         padder = []
-        if padding_type == 'reflect':
-            padder = [torch.nn.ReflectionPad3d(1)]
-        elif padding_type == 'replicate':
-            padder = [torch.nn.ReplicationPad3d(1)]
-        elif padding_type == 'zeros':
+        # if padding_type == 'reflect':
+        #     padder = [torch.nn.ReflectionPad3d(1)]
+        if padding_type.upper() == 'REPLICATE':
+            padder = [hk.pad.same(1)]
+        elif padding_type.upper() == 'ZEROS':
             p = 1
-        elif padding_type == 'valid':
-            p = 'valid'
+        elif padding_type.upper == 'VALID':
+            p = 'VALID'
         else:
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
         
         conv_block = []
         conv_block += padder.copy()
 
-        conv_block += [torch.nn.Conv3d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim), activation()]
-        if use_dropout:
-            conv_block += [torch.nn.Dropout(0.2)]
+        conv_block += [hk.Conv3D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(dim), activation()]
+        if use_dropout:  # TODO
+            key = jax.random.PRNGKey(22)
+            conv_block += [hk.dropout(key, 0.2)]  # TODO
 
         conv_block += padder.copy()
-        conv_block += [torch.nn.Conv3d(dim, dim, kernel_size=3, padding=p, bias=use_bias), norm_layer(dim)]
+        conv_block += [hk.Conv3D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(dim)]
 
-        return torch.nn.Sequential(*conv_block)
+        return hk.Sequential(*conv_block)
 
     def crop(self, x, shape):
         '''Center-crop x to match spatial dimensions given by shape.'''
@@ -298,7 +299,7 @@ class ResnetBlock3D(torch.nn.Module):
         x_target_size = x.size()[:-3] + shape
 
         offset = tuple(
-            torch.div((a - b), 2, rounding_mode='trunc')
+            jax.lax.div((a - b), 2)
             for a, b in zip(x.size(), x_target_size))
 
         slices = tuple(
@@ -307,9 +308,9 @@ class ResnetBlock3D(torch.nn.Module):
 
         return x[slices]
 
-    def forward(self, x):
+    def __call__(self, x):
         """Forward function (with skip connections)"""
-        if self.padding_type == 'valid': # crop for valid networks
+        if self.padding_type.upper() == 'VALID': # crop for valid networks
             res = self.conv_block(x)
             out = self.crop(x, res.size()[-3:]) + res
         else:
