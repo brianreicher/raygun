@@ -10,7 +10,7 @@ class ResnetGenerator2D(hk.Module):
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
     """
 
-    def __init__(self, input_nc=1, output_nc=1, ngf=64, norm_layer= hk.BatchNorm, use_dropout=False, n_blocks=6, padding_type='VALID', activation=jax.nn.relu, add_noise=False, n_downsampling=2):
+    def __init__(self, output_nc=1, ngf=64, norm_layer= hk.BatchNorm, use_dropout=False, n_blocks=6, padding_type='VALID', activation=jax.nn.relu, add_noise=False, n_downsampling=2):
         """Construct a Resnet-based generator
         Parameters:
             input_nc (int)      -- the number of channels in input images
@@ -30,37 +30,43 @@ class ResnetGenerator2D(hk.Module):
             use_bias = norm_layer.func == hk.InstanceNorm
         else:
             use_bias = norm_layer == hk.InstanceNorm
-        
+
         p = 0
         updown_p = 1
         padder = []
         # if padding_type.lower() == 'reflect':  # TODO parallel in JAX?
         #     padder = [hk.pad.same(3)]
         if padding_type.lower() == 'replicate':
-            padder = [hk.pad.same(3)]
+            # padder = [hk.pad.same(3)]
+            pass
         elif padding_type.lower() == 'zeros':
-            p = 3
+            # p = 3
+            pass
         elif padding_type.lower() == 'valid':
-            p = 'valid'
-            updown_p = 0
+            p = 'VALID'
+            updown_p = 'VALID'
 
         model = []
-        model += padder.copy()
+        # model += padder.copy()
         model += [hk.Conv2D(ngf, kernel_shape=7, padding=p, with_bias=use_bias),
-                 norm_layer(ngf),
-                 activation()]
-
+                 norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001),
+                 activation]
+        print('pass 1')
+        
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
-            model += [hk.Conv2D(ngf * mult, ngf * mult * 2, kernel_shape=3, stride=2, padding=updown_p, with_bias=use_bias),
-                      norm_layer(ngf * mult * 2),
-                      activation()]
-
-        mult = 2 ** n_downsampling
+            model += [hk.Conv2D(output_channels=ngf * mult * 2, kernel_shape=3, stride=2, padding=updown_p, with_bias=use_bias),
+                      norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001),
+                      activation]
+        
+        print('pass 2')
+        
+        mult = 2 ** n_downsampling  # TODO INHERITANCE ISSUE WITH ADDING RESNET 3D Block POSITIONAL ARGUMENTS
         for i in range(n_blocks):       # add ResNet blocks
+            model += [ResnetBlock2D(dim=(ngf * mult), padding_type=p, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias, activation=activation)]
 
-            model += [ResnetBlock2D(ngf * mult, padding_type=padding_type.lower(), norm_layer=norm_layer, use_dropout=use_dropout, with_bias=use_bias, activation=activation)]
-
+        print('pass 3')
+        
         if add_noise == 'param':                   # add noise feature if necessary
             # model += [ParameterizedNoiseBlock()]
             pass
@@ -69,16 +75,16 @@ class ResnetGenerator2D(hk.Module):
 
         for i in range(n_downsampling):  # add upsampling layers
             mult = 2 ** (n_downsampling - i)
-            model += [hk.Conv2DTranspose(ngf * mult + (i==0 and (add_noise is not False)), 
+            model += [hk.Conv2DTranspose(
                                          int(ngf * mult / 2),
                                          kernel_shape=3, stride=2,
                                          padding=updown_p,
                                          with_bias=use_bias),
-                      norm_layer(int(ngf * mult / 2)),
-                      activation()]
+                       norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001),
+                      activation]
         model += padder.copy()
         model += [hk.Conv2D(output_nc, kernel_shape=7, padding=p)]
-        model += [jax.nn.tanh()]
+        model += [jax.nn.tanh]
 
         self.model = hk.Sequential(*model)
 
@@ -116,25 +122,27 @@ class ResnetBlock2D(hk.Module):
         padder = []
         # if padding_type == 'reflect':  # TODO parallel in JAX?
         #     padder = [torch.nn.ReflectionPad2d(1)]
-        if padding_type == 'replicate':
-            padder = [hk.pad.same(1)]
-        elif padding_type == 'zeros':
-            p = 1
-        elif padding_type == 'valid':
-            p = 'valid'
+        if padding_type.upper() == 'REPLICATE':
+            # padder = [hk.pad.same(1)]
+            pass
+        elif padding_type.upper() == 'ZEROS':
+            # p = 1
+            pass
+        elif padding_type.upper() == 'VALID':
+            p = 'VALID'
         else:
             raise NotImplementedError('padding [%s] is not implemented' % padding_type)
         
         conv_block = []
-        conv_block += padder.copy()
+        # conv_block += padder.copy()
 
-        conv_block += [hk.Conv2D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(dim), activation()]
+        conv_block += [hk.Conv2D(dim, kernel_shape=3, padding=p, with_bias=use_bias),  norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001), activation]
         if use_dropout:
             key = jax.random.PRNGKey(22)
             conv_block += [hk.dropout(key, 0.2)]  # TODO
         
         conv_block += padder.copy()
-        conv_block += [hk.Conv2D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(dim)]
+        conv_block += [hk.Conv2D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001)]
 
         return hk.Sequential(*conv_block)
 
@@ -162,7 +170,7 @@ class ResnetBlock2D(hk.Module):
             out = x + self.conv_block(x)  # add skip connections
         return out
 
-
+'''
 class ResnetGenerator3D(hk.Module):
     """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations, and (optionally) the injection of a feature map of random noise into the first upsampling layer.
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
@@ -294,7 +302,6 @@ class ResnetBlock3D(hk.Module):
         return hk.Sequential(*conv_block)
 
     def crop(self, x, shape):
-        '''Center-crop x to match spatial dimensions given by shape.'''
 
         x_target_size = x.size()[:-3] + shape
 
@@ -343,3 +350,4 @@ class ResNet(ResnetGenerator2D, ResnetGenerator3D):
             ResnetGenerator3D.__init__(self, **kwargs)
         else:
             raise ValueError(ndims, 'Only 2D or 3D currently implemented. Feel free to contribute more!')
+'''

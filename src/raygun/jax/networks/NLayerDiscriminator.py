@@ -26,7 +26,7 @@ class NLayerDiscriminator2D(hk.Module):
 
         padw = "VALID"
         ds_kw = downsampling_kw
-        sequence = [hk.Conv2D(output_channels=ngf, kernel_shape=ds_kw, stride=2, padding=padw), jax.nn.leaky_relu(0.2, True)]
+        sequence = [hk.Conv2D(output_channels=ngf, kernel_shape=ds_kw, stride=2, padding=padw), jax.nn.leaky_relu()]
         nf_mult = 1
         # nf_mult_prev = 1
         for n in range(1, n_layers):  # gradually increase the number of filters
@@ -35,16 +35,15 @@ class NLayerDiscriminator2D(hk.Module):
             sequence += [
                 hk.Conv2D(output_channels=ngf * nf_mult, kernel_shape=ds_kw, stride=2, padding=padw, with_bias=True),
                 norm_layer(create_scale=False, create_offset=False, decay_rate=0.999),  # TODO FIX OFFSET AND DECAY RATE
-                jax.nn.leaky_relu(0.2, True)
+                jax.nn.leaky_relu()
             ]
 
         # nf_mult_prev = nf_mult
         nf_mult = min(2 ** n_layers, 8)
         sequence += [
             hk.Conv2D(output_channels=ngf * nf_mult, kernel_shape=kw, stride=1, padding=padw, with_bias=True),
-            # norm_layer(ngf * nf_mult),
             norm_layer(create_scale=True, create_offset=False, decay_rate=0.999),  # TODO FIX OFFSET AND DECAY RATE
-            jax.nn.leaky_relu(0.2, True)
+            jax.nn.leaky_relu()
         ]
 
         sequence += [hk.Conv2D(output_channels=1, kernel_shape=kw, stride=1, padding=padw)]  # output 1 channel prediction map
@@ -70,7 +69,7 @@ class NLayerDiscriminator2D(hk.Module):
 
         return r
 
-    def __cal__(self, input):
+    def __call__(self, input):
         """Standard forward."""
         return self.model(input)
 
@@ -99,7 +98,7 @@ class NLayerDiscriminator3D(hk.Module):
 
         padw = "VALID"
         ds_kw = downsampling_kw
-        sequence = [hk.Conv3D(output_channels=ngf, kernel_shape=ds_kw, stride=2, padding=padw), jax.nn.leaky_relu(0.2, True)]
+        sequence = [hk.Conv3D(output_channels=ngf, kernel_shape=ds_kw, stride=2, padding=padw), jax.nn.leaky_relu]
         nf_mult = 1
         # nf_mult_prev = 1
         for n in range(1, n_layers):  # gradually increase the number of filters

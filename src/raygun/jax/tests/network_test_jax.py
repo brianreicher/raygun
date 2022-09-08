@@ -1,6 +1,5 @@
 #%%
-import raygun
-from raygun.jax.networks import ResidualUNet, UNet, NLayerDiscriminator
+from raygun.jax.networks import *
 import jax
 import jax.numpy as jnp
 from jax import jit
@@ -10,8 +9,6 @@ import jmp
 import time
 from typing import Tuple, Any, NamedTuple, Dict
 from skimage import data
-import matplotlib.pyplot as plt
-from tqdm import trange
 
 
 class Params(NamedTuple):
@@ -35,10 +32,10 @@ class GenericJaxModel():
     def train_step(self, inputs, pmapped):
         raise RuntimeError("Unimplemented")
 
-
+# RIP Queen Elizabeth 9/8/22
 class JAXModel(GenericJaxModel):
 
-    def __init__(self, network_type = 'UNet', learning_rate = 0.5e-4, **net_kwargs):  # TODO set up for **kwargs
+    def __init__(self, learning_rate = 0.5e-4):  # TODO set up for **kwargs
         super().__init__()
         self.learning_rate = learning_rate
 
@@ -47,14 +44,15 @@ class JAXModel(GenericJaxModel):
 
             def __init__(self, name=None):
                 super().__init__(name=name)
-                # self.net = ResidualUNet(
+                # self.net = UNet(
                 #     ngf=3,
                 #     fmap_inc_factor=2,
                 #     downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
                 #     )
-                self.net = NLayerDiscriminator(ndims=2, ngf=3)
+                # self.net = NLayerDiscriminator3D(ngf=3)
                 # net = getattr(raygun.jax.networks, network_type)
                 # self.net = net(net_kwargs)
+                self.net = ResnetGenerator2D(ngf=3)
                
             def __call__(self, x):
                 return self.net(x)
@@ -77,7 +75,7 @@ class JAXModel(GenericJaxModel):
         self.forward = _forward
 
         @jit
-        def _loss_fn(weight, raw, gt, mask, loss_scale):
+        def _loss_fn(weight, raw, gt, loss_scale):
             pred_affs = self.model.apply(weight, x=raw)
             loss = optax.l2_loss(predictions=pred_affs, targets=gt)
             # loss = loss*2*mask  # optax divides loss by 2 so we mult it back
@@ -166,8 +164,10 @@ class NetworkTestJAX():  # TODO setup for **kwargs
             self.inputs = {
                                     'raw': jnp.ones([self.batch_size, 1, 132, 132, 132]),
                                     'gt': jnp.zeros([self.batch_size, 3, 40, 40, 40]),
+                                    # 'raw': jnp.ones([16, 1, 512, 512, 512]),
+                                    # 'gt': jnp.zeros([16, 1, 512, 512, 512])
                                  }
-        else:
+        else:  # TODO raw/gt shape are off and creating fmaps which are too small for valid convolutions
             gt_import = getattr(data, self.im)()
             if len(gt_import.shape) > 2:  # Strips to use only one image
                 gt_import = gt_import[...,0]
@@ -198,9 +198,7 @@ class NetworkTestJAX():  # TODO setup for **kwargs
         for _ in range(self.num_epochs):
             t0 = time.time()
             
-            self.model_params, outputs, loss = jax.jit(self.model.train_step,
-                                                                    donate_argnums=(0,),
-                                                                    static_argnums=(2,))(self.model_params, self.inputs, False)
+            self.model_params, outputs, loss = jax.jit(self.model.train_step)(self.model_params, self.inputs)
 
                                                                     
             print(f'Loss: {loss}, took {time.time()-t0}s')
