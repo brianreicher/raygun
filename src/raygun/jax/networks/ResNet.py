@@ -14,7 +14,7 @@ class ResnetGenerator2D(hk.Module):
         """Construct a Resnet-based generator
         Parameters:
             input_nc (int)      -- the number of channels in input images
-            output_nc (int)     -- the number of channels in output images
+            output_nc (int)     -- the number of channels in output imagesf
             ngf (int)           -- the number of filters in the last conv layer
             norm_layer          -- normalization layer
             use_dropout (bool)  -- if use dropout layers
@@ -82,7 +82,7 @@ class ResnetGenerator2D(hk.Module):
                                          with_bias=use_bias),
                        norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001),
                       activation]
-        model += padder.copy()
+        # model += padder.copy()
         model += [hk.Conv2D(output_nc, kernel_shape=7, padding=p)]
         model += [jax.nn.tanh]
 
@@ -141,7 +141,7 @@ class ResnetBlock2D(hk.Module):
             key = jax.random.PRNGKey(22)
             conv_block += [hk.dropout(key, 0.2)]  # TODO
         
-        conv_block += padder.copy()
+        # conv_block += padder.copy()
         conv_block += [hk.Conv2D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001)]
 
         return hk.Sequential(*conv_block)
@@ -170,13 +170,13 @@ class ResnetBlock2D(hk.Module):
             out = x + self.conv_block(x)  # add skip connections
         return out
 
-'''
+
 class ResnetGenerator3D(hk.Module):
     """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations, and (optionally) the injection of a feature map of random noise into the first upsampling layer.
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
     """
 
-    def __init__(self, input_nc=1, output_nc=1, ngf=64, norm_layer=hk.BatchNorm, use_dropout=False, n_blocks=6, padding_type='REFLECT', activation=jax.nn.relu, add_noise=False, n_downsampling=2):
+    def __init__(self, output_nc=1, ngf=64, norm_layer=hk.BatchNorm, use_dropout=False, n_blocks=6, padding_type='VALID', activation=jax.nn.relu, add_noise=False, n_downsampling=2):
         """Construct a Resnet-based generator
         Parameters:
             input_nc (int)      -- the number of channels in input images
@@ -203,29 +203,30 @@ class ResnetGenerator3D(hk.Module):
         # if padding_type.lower() == 'reflect':  # TODO JAX parallel?
         #     padder = [torch.nn.ReflectionPad3d(3)]
         if padding_type.upper() == 'REPLICATE':
-            padder = [hk.pad.same(3)]
+            # padder = [hk.pad.same(3)]
+            pass
         elif padding_type.upper() == 'ZEROS':
-            p = 3
+            # p = 3
+            pass
         elif padding_type.upper() == 'VALID':
             p = 'VALID'
-            updown_p = 0  # TODO 
+            updown_p = 'VALID' # TODO 
 
         model = []
-        model += padder.copy()
         model += [hk.Conv3D(ngf, kernel_shape=7, padding=p, with_bias=use_bias),
-                 norm_layer(ngf),
-                 activation()]
+                 norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001),
+                 activation]
 
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
-            model += [hk.Conv3D(ngf * mult * 2, kernel_shape=3, stride=2, padding=updown_p, with_bias=use_bias), #TODO: Make actually use padding_type for every convolution (currently does zeros if not valid)
-                      norm_layer(ngf * mult * 2),
-                      activation()]
+            model += [hk.Conv3D(output_channels=ngf * mult * 2, kernel_shape=3, stride=2, padding=updown_p, with_bias=use_bias), #TODO: Make actually use padding_type for every convolution (currently does zeros if not valid)
+                      norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001),
+                      activation]
 
         mult = 2 ** n_downsampling
         for i in range(n_blocks):       # add ResNet blocks
 
-            model += [ResnetBlock3D(ngf * mult, padding_type=padding_type.upper(), norm_layer=norm_layer, use_dropout=use_dropout, with_bias=use_bias, activation=activation)]
+            model += [ResnetBlock3D(dim=ngf * mult, padding_type=p, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias, activation=activation)]
 
         if add_noise:                   
             model += [NoiseBlock()]
@@ -233,15 +234,15 @@ class ResnetGenerator3D(hk.Module):
         for i in range(n_downsampling):  # add upsampling layers
             mult = 2 ** (n_downsampling - i)
             model += [hk.Conv3DTranspose(
-                                         int(ngf * mult / 2),
+                                         output_channels=int(ngf * mult / 2),
                                          kernel_shape=3, stride=2,
                                          padding=updown_p,
                                          with_bias=use_bias),
-                      norm_layer(int(ngf * mult / 2)),
-                      activation()]
-        model += padder.copy()
-        model += [hk.Conv3D(output_nc, kernel_shape=7, padding=p)]
-        model += [jax.nn.tanh()]
+                      norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001),
+                      activation]
+        # model += padder.copy()
+        model += [hk.Conv3D(output_channels=output_nc, kernel_shape=7, padding=p)]
+        model += [jax.nn.tanh]
 
         self.model = hk.Sequential(*model)
 
@@ -280,9 +281,11 @@ class ResnetBlock3D(hk.Module):
         # if padding_type == 'reflect':
         #     padder = [torch.nn.ReflectionPad3d(1)]
         if padding_type.upper() == 'REPLICATE':
-            padder = [hk.pad.same(1)]
+            # padder = [hk.pad.same(1)]
+            pass
         elif padding_type.upper() == 'ZEROS':
-            p = 1
+            # p = 1
+            pass
         elif padding_type.upper == 'VALID':
             p = 'VALID'
         else:
@@ -291,13 +294,15 @@ class ResnetBlock3D(hk.Module):
         conv_block = []
         conv_block += padder.copy()
 
-        conv_block += [hk.Conv3D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(dim), activation()]
+        conv_block += [hk.Conv3D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001), activation]
+        
+        print('dropout check')
         if use_dropout:  # TODO
             key = jax.random.PRNGKey(22)
             conv_block += [hk.dropout(key, 0.2)]  # TODO
 
-        conv_block += padder.copy()
-        conv_block += [hk.Conv3D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(dim)]
+        # conv_block += padder.copy()
+        conv_block += [hk.Conv3D(dim, kernel_shape=3, padding=p, with_bias=use_bias), norm_layer(create_offset=True, create_scale=True, decay_rate=0.0001)]
 
         return hk.Sequential(*conv_block)
 
@@ -350,4 +355,3 @@ class ResNet(ResnetGenerator2D, ResnetGenerator3D):
             ResnetGenerator3D.__init__(self, **kwargs)
         else:
             raise ValueError(ndims, 'Only 2D or 3D currently implemented. Feel free to contribute more!')
-'''

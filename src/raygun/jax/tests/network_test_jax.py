@@ -32,7 +32,7 @@ class GenericJaxModel():
     def train_step(self, inputs, pmapped):
         raise RuntimeError("Unimplemented")
 
-# RIP Queen Elizabeth 9/8/22
+
 class JAXModel(GenericJaxModel):
 
     def __init__(self, learning_rate = 0.5e-4):  # TODO set up for **kwargs
@@ -44,15 +44,13 @@ class JAXModel(GenericJaxModel):
 
             def __init__(self, name=None):
                 super().__init__(name=name)
-                # self.net = UNet(
+                # self.net = ResidualUNet(
                 #     ngf=3,
                 #     fmap_inc_factor=2,
                 #     downsample_factors=[[2,2,2],[2,2,2],[2,2,2]]
                 #     )
                 # self.net = NLayerDiscriminator3D(ngf=3)
-                # net = getattr(raygun.jax.networks, network_type)
-                # self.net = net(net_kwargs)
-                self.net = ResnetGenerator2D(ngf=3)
+                self.net = ResNet(ndims=2,ngf=3)
                
             def __call__(self, x):
                 return self.net(x)
